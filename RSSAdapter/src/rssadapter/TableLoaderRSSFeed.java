@@ -54,13 +54,13 @@ public class TableLoaderRSSFeed extends TableLoader {
 		//        col.setName("DESCRIPTION");
     	switch (tablecolumnindex) {
     	case 0:
-    		row.setColumnValue(returncolumnindex, entry.getUri());
+    		row.setColumnValue(returncolumnindex, checkStringLength(entry.getUri(), 512));
     		break;
     	case 1:
-    		row.setColumnValue(returncolumnindex, entry.getAuthor());
+    		row.setColumnValue(returncolumnindex, checkStringLength(entry.getAuthor(), 255));
     		break;
     	case 2:
-    		row.setColumnValue(returncolumnindex, entry.getLink());
+    		row.setColumnValue(returncolumnindex, checkStringLength(entry.getLink(), 512));
     		break;
     	case 3:
 			if (entry.getPublishedDate() != null)
@@ -69,7 +69,7 @@ public class TableLoaderRSSFeed extends TableLoader {
 				row.setColumnNull(returncolumnindex);
     		break;
     	case 4:
-    		row.setColumnValue(returncolumnindex, entry.getTitle());
+    		row.setColumnValue(returncolumnindex, checkStringLength(entry.getTitle(), 255));
     		break;
     	case 5:
 			if (entry.getUpdatedDate() != null)
@@ -78,12 +78,20 @@ public class TableLoaderRSSFeed extends TableLoader {
 				row.setColumnNull(returncolumnindex);
     		break;
     	case 6:
-			if (entry.getDescription() != null)
-				row.setColumnValue(returncolumnindex, entry.getDescription().getValue());
-			else
+			if (entry.getDescription() != null) {
+				row.setColumnValue(returncolumnindex, checkStringLength(entry.getDescription().getValue(), 5000));
+			} else
 				row.setColumnNull(returncolumnindex);
     		break;
     	}
+	}
+	
+	private String checkStringLength(String v, int length) {
+		if (v != null && v.length() > length) {
+			return v.substring(0, length); // substring returns beginindex (inclusive) to endindex (exclusive) hence endindex=length is fine
+		} else {
+			return v;
+		}
 	}
 
 	@Override
@@ -103,7 +111,7 @@ public class TableLoaderRSSFeed extends TableLoader {
         addColumnTimestamp(table, "PUBLISHEDDATE", "Date published", null, null);
         addColumnVarchar(table, "TITLE", 255, "Title of the post", null, null);
         addColumnTimestamp(table, "UPDATEDATE", "Update date", null, null);
-        addColumnVarchar(table, "DESCRIPTION", 1024, "Excerpt from the post", null, null);
+        addColumnVarchar(table, "DESCRIPTION", 5000, "Excerpt from the post", null, null);
 	}
 
 	@SuppressWarnings("unchecked")

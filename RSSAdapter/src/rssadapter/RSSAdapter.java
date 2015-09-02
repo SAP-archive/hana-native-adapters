@@ -21,7 +21,9 @@ import com.sap.hana.dp.adapter.sdk.StatementInfo;
 import com.sap.hana.dp.adapter.sdk.SubscriptionSpecification;
 import com.sap.hana.dp.adapter.sdk.TableMetadata;
 import com.sap.hana.dp.adapter.sdk.adapterbase.BaseAdapterClass;
+import com.sap.hana.dp.adapter.sdk.adapterbase.SubscriptionInformationPerTablename;
 import com.sap.hana.dp.adapter.sdk.adapterbase.SubscriptionRuntimeInformation;
+import com.sap.hana.dp.adapter.sdk.adapterbase.Subscriptions;
 import com.sap.hana.dp.adapter.sdk.adapterbase.TableLoader;
 import com.sun.syndication.feed.synd.SyndFeed;
 import com.sun.syndication.fetcher.FeedFetcher;
@@ -35,8 +37,6 @@ import com.sun.syndication.io.FeedException;
 
 public class RSSAdapter extends BaseAdapterClass {
 
-	// private static final String PROXYPORT = "proxyport";
-	// private static final String PROXYHOST = "proxyhost";
 	private static final String URL = "URL";
 	static Logger logger = LogManager.getLogger("RSSAdapter");
 	private String rssurl = null;
@@ -47,8 +47,6 @@ public class RSSAdapter extends BaseAdapterClass {
 	@Override
 	public void addRemoteSourceDescriptors(PropertyGroup root) throws AdapterException {
 		root.addProperty(new PropertyEntry(URL, URL));
-		// root.addProperty(new PropertyEntry(PROXYHOST, PROXYHOST));
-		// root.addProperty(new PropertyEntry(PROXYPORT, PROXYPORT));
 	}
 	
 	public void addRemoteSourceCredentialDescriptors(CredentialProperties credential) throws AdapterException {
@@ -58,13 +56,6 @@ public class RSSAdapter extends BaseAdapterClass {
 	@Override
 	public void open(RemoteSourceDescription arg0, boolean arg1) throws AdapterException {
 		rssurl = getPropertyValueByPath(arg0, URL);
-		/* String proxyhost = getPropertyValueByPath(arg0, PROXYHOST);
-		String proxyport = getPropertyValueByPath(arg0, PROXYPORT);
-		if (proxyhost != null && proxyhost.length() > 0 && proxyport != null) {
-		    System.setProperty("proxyset", "true");
-		    System.setProperty("proxyHost", proxyhost);
-		    System.setProperty("proxyPort", proxyport);
-		} */
 	}
 
 	@Override
@@ -132,6 +123,7 @@ public class RSSAdapter extends BaseAdapterClass {
 	@Override
 	public void pollEnd() throws AdapterException {
 		feedFetcher = null;
+		
 	}
 
 	
@@ -139,8 +131,6 @@ public class RSSAdapter extends BaseAdapterClass {
 		public void fetcherEvent(FetcherEvent event) {
 			String eventType = event.getEventType();
 			if (FetcherEvent.EVENT_TYPE_FEED_POLLED.equals(eventType)) {
-				System.err.println("\tEVENT: Feed Polled. URL = " +
-						event.getUrlString());
 			} else if (FetcherEvent.EVENT_TYPE_FEED_RETRIEVED.equals(eventType)) {
 				SyndFeed f = event.getFeed();
 		        try {
@@ -150,11 +140,20 @@ public class RSSAdapter extends BaseAdapterClass {
 				    sendRows();
 					commit();
 				} catch (AdapterException e1) {
-					// TODO Auto-generated catch block
+					// If the adapter instance lost contact with Hana, the subscriptions have to be removed. 
 					e1.printStackTrace();
+					try {
+						Subscriptions s = getSubscriptions();
+						SubscriptionInformationPerTablename sub = s.get("RSSFEED");
+						if (sub != null) {
+							for (SubscriptionRuntimeInformation rs : sub.getSubscriptionList().values()) {
+								stop(rs.getSubscriptionSpecification());
+							}
+						}
+					} catch (AdapterException e) {
+					}
 				}
 			} else if (FetcherEvent.EVENT_TYPE_FEED_UNCHANGED.equals(eventType)) {
-				System.err.println("\tEVENT: Feed Unchanged. URL = " + event.getUrlString());
 			}
 		}
 	}
