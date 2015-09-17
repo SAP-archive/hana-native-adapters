@@ -11,11 +11,11 @@ By querying the ADAPTERCAPS table the adapter capabilities (not table or column 
 Attention: The ADAPTERCAPS table shows what the adapter would return currently whenever the method getCapabilities() is called. But this method is not called unless the adapter is either created in Hana or refreshed by Hana. Also, the capabilities are kept in memory only, meaning if the adapter is restarted it has the default capabilities only - all changes are lost.
 
 For this reason the following code segments should be used to play with the capabilities (assuming the remote source is called "captest", the agent name is "mylaptop" and a virtual table called v_adaptercaps was created):
-* update v_adaptercaps set isset = 'TRUE' where CAPABILITY = 'CAP_NONEQUAL_COMPARISON';
-* alter adapter "CapabilitiesTestAdapter" refresh at location agent "mylaptop";
-* drop table v_sqltable;
-* create virtual table v_sqltable at "captest"."<NULL>"."<NULL>"."SQLTABLE";
-* select * from v_sqltable where rownumber>=1;
+* `update v_adaptercaps set isset = 'TRUE' where CAPABILITY = 'CAP_NONEQUAL_COMPARISON';`
+* `alter adapter "CapabilitiesTestAdapter" refresh at location agent "mylaptop";`
+* `drop table v_sqltable;`
+* `create virtual table v_sqltable at "captest"."<NULL>"."<NULL>"."SQLTABLE";`
+* `select * from v_sqltable where rownumber>=1;`
 
 
 
