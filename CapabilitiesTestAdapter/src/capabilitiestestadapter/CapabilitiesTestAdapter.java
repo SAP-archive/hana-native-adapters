@@ -25,16 +25,26 @@ public class CapabilitiesTestAdapter extends Adapter {
 
 	static Logger logger = LogManager.getLogger("CapabilitiesTestAdapter");
 	private String sql_received = null;
-	private static Capabilities<AdapterCapability> capability = new Capabilities<AdapterCapability>();
+	private static Capabilities<AdapterCapability> adaptercapabilities = new Capabilities<AdapterCapability>();
 	private String tablename_to_read;
 	
 	{
-		capability.setCapability(AdapterCapability.CAP_SELECT);
-		capability.setCapability(AdapterCapability.CAP_UPDATE);
-		capability.setCapability(AdapterCapability.CAP_WHERE);
-		capability.setCapability(AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE);
+		/*
+		 * These are the minimum capabilities required. Without, the update statement 
+		 *   update v_adaptercaps set isset = 'TRUE' where CAPABILITY = 'CAP_NONEQUAL_COMPARISON';
+		 * would not work.
+		 */
+		adaptercapabilities.setCapability(AdapterCapability.CAP_SELECT);
+		adaptercapabilities.setCapability(AdapterCapability.CAP_UPDATE);
+		adaptercapabilities.setCapability(AdapterCapability.CAP_WHERE);
+		adaptercapabilities.setCapability(AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE);
 	}
 	
+	/** 
+	 * This adapter has two tables only, SQLTABLE and ADAPTERCAPS.
+	 * @see com.sap.hana.dp.adapter.sdk.Adapter#browseMetadata()
+	 * 
+	 */
 	@Override
 	public List<BrowseNode> browseMetadata() throws AdapterException {
 		List<BrowseNode> nodes = new ArrayList<BrowseNode>();
@@ -55,6 +65,11 @@ public class CapabilitiesTestAdapter extends Adapter {
 	public void close() throws AdapterException {
 	}
 
+	/**
+	 * When a query is executed the sql text is saved as this will be returned as row. And the knowledge 
+	 * which of the two tables has been selected from.
+	 * @see com.sap.hana.dp.adapter.sdk.Adapter#executeStatement(java.lang.String, com.sap.hana.dp.adapter.sdk.StatementInfo)
+	 */
 	@Override
 	public void executeStatement(String sql, StatementInfo info) throws AdapterException {
 		sql_received = sql;
@@ -73,9 +88,14 @@ public class CapabilitiesTestAdapter extends Adapter {
 		}
 	}
 
+	/**
+	 * return the currently set capabilities. As the adaptercapabilites variable is static, all sessions 
+	 * to this adapter will see the same capabilities. But they do not survive a shutdown of the adapter - kept in memory only. 
+	 * @see com.sap.hana.dp.adapter.sdk.Adapter#getCapabilities(java.lang.String)
+	 */
 	@Override
 	public Capabilities<AdapterCapability> getCapabilities(String version) throws AdapterException {
-		return capability;
+		return adaptercapabilities;
 	}
 
 	@Override
@@ -83,6 +103,12 @@ public class CapabilitiesTestAdapter extends Adapter {
 		return 0;
 	}
 
+	/**
+	 * This method either returns one row for the SQLTABLE or all capabilities currently supported by 
+	 * the SDK and the information if they are turned on or off.
+	 * Note that some capabilities cannot be changed, these are marked with a * at the end.
+	 * @see com.sap.hana.dp.adapter.sdk.Adapter#getNext(com.sap.hana.dp.adapter.sdk.AdapterRowSet)
+	 */
 	@Override
 	public void getNext(AdapterRowSet rows) throws AdapterException {
 		if (tablename_to_read != null) {
@@ -99,7 +125,7 @@ public class CapabilitiesTestAdapter extends Adapter {
 				for (AdapterCapability cap : AdapterCapability.values()) {
 					AdapterRow row = rows.newRow();
 					row.setColumnValue(0, cap.name());
-					if (capability.hasCapability(cap)) {
+					if (adaptercapabilities.hasCapability(cap)) {
 						if (cap != AdapterCapability.CAP_SELECT &&
 								cap != AdapterCapability.CAP_UPDATE &&
 								cap != AdapterCapability.CAP_WHERE &&
@@ -109,8 +135,10 @@ public class CapabilitiesTestAdapter extends Adapter {
 							// These capabilities cannot be set to false
 							row.setColumnValue(1, "TRUE*");
 						}
-					} else {
+					} else if (cap != AdapterCapability.CAP_PROJECT) {
 						row.setColumnValue(1, "FALSE");
+					} else {
+						row.setColumnValue(1, "FALSE*");
 					}
 				}
 			}
@@ -118,21 +146,14 @@ public class CapabilitiesTestAdapter extends Adapter {
 		tablename_to_read = null;
 	}
 
+	/* 
+	 * The remote source does not need any properties being specified by the user.
+	 * 
+	 * @see com.sap.hana.dp.adapter.sdk.Adapter#getRemoteSourceDescription()
+	 */
 	@Override
 	public RemoteSourceDescription getRemoteSourceDescription() throws AdapterException {
 		RemoteSourceDescription rs = new RemoteSourceDescription();
-		
-		/* PropertyGroup connectionInfo = new PropertyGroup("testParam","Test Parameters","Test Parameters");
-		connectionInfo.addProperty(new PropertyEntry("name", "name"));
-		
-		CredentialProperties credentialProperties = new CredentialProperties();
-		CredentialEntry credential = new CredentialEntry("credential", "Test Credentials");
-		credential.getUser().setDisplayName("Demo Username");
-		credential.getPassword().setDisplayName("Demo Password");
-		credentialProperties.addCredentialEntry(credential);
-
-		rs.setCredentialProperties(credentialProperties);
-		rs.setConnectionProperties(connectionInfo); */
 		return rs;
 	}
 	
@@ -142,6 +163,13 @@ public class CapabilitiesTestAdapter extends Adapter {
 		return null;
 	}
 
+	/**
+	 * There are two tables:<BR>
+	 * SQLTABLE (ROWNUBER INTEGER, SQLTEXT VARCHAR(5000))<BR/>
+	 * ADAPTERCAPS (CAPABILITY VARCHAR(127), ISSET VARCHAR(6))<BR/>
+	 * 
+	 * @see com.sap.hana.dp.adapter.sdk.Adapter#importMetadata(java.lang.String)
+	 */
 	@Override
 	public Metadata importMetadata(String nodeId) throws AdapterException {
 		List<Column> schema = new ArrayList<Column>();
@@ -159,7 +187,7 @@ public class CapabilitiesTestAdapter extends Adapter {
 			col1.setNullable(true);	
 			schema.add(col1);
 			
-			Column col2 = new Column("ISSET", DataType.VARCHAR, 5);
+			Column col2 = new Column("ISSET", DataType.VARCHAR, 6);
 			col2.setNullable(true);
 			schema.add(col2);
 		} else {
@@ -213,6 +241,16 @@ public class CapabilitiesTestAdapter extends Adapter {
 	public void executePreparedUpdate(String arg0, StatementInfo arg1) throws AdapterException {
 	}
 
+	/**
+	 * Only two kinds of update statements are supported:<BR/>
+	 * update v_adaptercaps set isset = ? where CAPABILITY = ?;
+	 * update v_adaptercaps set isset = ?
+	 * 
+	 * Note: Not all capability rows can be changed, some need to remain as is for the adapter to work properly. 
+	 * All these capabilities have an asterix char at the end of their ISSET value.
+	 * 
+	 * @see com.sap.hana.dp.adapter.sdk.Adapter#executeUpdate(java.lang.String, com.sap.hana.dp.adapter.sdk.StatementInfo)
+	 */
 	@Override
 	public int executeUpdate(String sql, StatementInfo info) throws AdapterException {
 		Query query = null;
@@ -246,8 +284,10 @@ public class CapabilitiesTestAdapter extends Adapter {
 						int counter = 0;
 						if (issetvalue.booleanValue()) {
 							for (AdapterCapability cap : AdapterCapability.values()) {
-								capability.setCapability(cap);
-								counter++;
+								if (cap != AdapterCapability.CAP_PROJECT) {
+									adaptercapabilities.setCapability(cap);
+									counter++;
+								}
 							}
 						} else {
 							for (AdapterCapability cap : AdapterCapability.values()) {
@@ -255,7 +295,7 @@ public class CapabilitiesTestAdapter extends Adapter {
 										cap != AdapterCapability.CAP_UPDATE &&
 										cap != AdapterCapability.CAP_WHERE &&
 										cap != AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE) {
-									capability.clearCapability(cap);
+									adaptercapabilities.clearCapability(cap);
 									counter++;
 								}
 							}
@@ -279,10 +319,10 @@ public class CapabilitiesTestAdapter extends Adapter {
 											newcap != AdapterCapability.CAP_WHERE &&
 											newcap != AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE) {
 										if (issetvalue.booleanValue()) {
-											capability.setCapability(newcap);
+											adaptercapabilities.setCapability(newcap);
 											return 1;
 										} else {
-											capability.clearCapability(newcap);
+											adaptercapabilities.clearCapability(newcap);
 											return 1;
 										}
 									}
