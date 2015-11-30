@@ -1,0 +1,11 @@
+!.settings/
+!.project
+*._trace
+*.log
+target/
+*.*~
+bin/
+lib/
+
+
+
