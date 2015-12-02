@@ -171,7 +171,26 @@ public class SQLRewriter {
 		case TABLE:
 		{
 			TableReference tab = (TableReference)val;
-			str.append(tab.getName());
+			/*
+			 * A table reference is in the format catalog.schema.tablename
+			 * But not all databases do have catalogs or schemas, it can be any combination.
+			 * Therefore we have to remove from e.g. <none>.schema1.tablename1 the "<none>." portion. 
+			 */
+			String uniquename = tab.getUnquotedName();
+			String[] namecomponents = uniquename.split("\\.");
+			if (namecomponents.length != 3) {
+				throw new AdapterException("SQL contains a table reference which does not follow the format catalog.schema.tablename - this is impossible!");
+			}
+			for (int i=0; i<3; i++) {
+				if (namecomponents[i].equals("<none>") == false) {
+					str.append("\"");
+					str.append(namecomponents[i]);
+					str.append("\"");
+					if (i != 2) {
+						str.append(".");
+					}
+				}
+			}
 			break;
 		}
 		case SELECT:

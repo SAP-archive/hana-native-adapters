@@ -65,10 +65,6 @@ import com.sap.hana.dp.adapter.sdk.UniqueKey;
 public class JDBCAdapter extends Adapter{
 
 	static Logger logger = LogManager.getLogger("JDBCAdapter");
-	/**JDBC Driver**/
-	static final String JDBC_DRIVER_NAME = "com.microsoft.sqlserver.jdbc.SQLServerDriver";
-	/**JDBC URL**/
-	private String JDBC_URL = "jdbc:sqlserver://HOST;databaseName=DB_NAME";
 	/**JDBC connections **/
 	private Connection conn = null;
 	private Statement stmt = null;
@@ -78,12 +74,9 @@ public class JDBCAdapter extends Adapter{
 
 	/** Node user is browsing **/
 	private String nodeID = null; 
-	/** SQL Statement executed by the user **/
-	private String sql = null; 
 	/** Browse node offset**/
 	private int browseOffset = 0;
 	private int fetchSize;
-	private String database;
 	
 	private HashMap<Long, InputStream> blobHandle;
 	private HashMap<Long, Reader> clobHandle;
@@ -101,8 +94,9 @@ public class JDBCAdapter extends Adapter{
 	public RemoteSourceDescription getRemoteSourceDescription() throws AdapterException {
 		RemoteSourceDescription rs = new RemoteSourceDescription();
 		PropertyGroup connectionInfo = new PropertyGroup("connectionInfo","Connection","Connection");
-		connectionInfo.addProperty(new PropertyEntry("HOST", "Host"));
-		connectionInfo.addProperty(new PropertyEntry("DB_NAME", "DataBase Name"));
+		connectionInfo.addProperty(new PropertyEntry("jdbcurl", "JDBC URL", "The URL of the connection, e.g. jdbc:sqlserver://localhost;databaseName=master"));
+		connectionInfo.addProperty(new PropertyEntry("jdbcjar", "JDBC Driver jar file", "the location of the jdbc driver's jar file on the agent computer, e.g. lib/sqljdbc.jar"));
+		connectionInfo.addProperty(new PropertyEntry("jdbcclass", "JDBC Class", "The class name to use, e.g. com.microsoft.sqlserver.jdbc.SQLServerDriver"));
 		CredentialProperties credentialProperties = new CredentialProperties();
 		CredentialEntry credential = new CredentialEntry("credential", "JDBC Credentials");
 		credential.getUser().setDisplayName("Username");
@@ -129,37 +123,34 @@ public class JDBCAdapter extends Adapter{
 		
 		String username = "";
 		String password = "";
+		CredentialProperties p = connectionInfo.getCredentialProperties();
+		CredentialEntry c = p.getCredentialEntry("credential");
 		try {
-			username = new String(connectionInfo.getCredentialProperties().getCredentialEntry("credential").getUser().getValue(), "UTF-8");
-			password = new String(connectionInfo.getCredentialProperties().getCredentialEntry("credential").getPassword().getValue(), "UTF-8");
+			username = new String(c.getUser().getValue(), "UTF-8");
+			password = new String(c.getPassword().getValue(), "UTF-8");
 		} catch (UnsupportedEncodingException e1) {
-			throw new AdapterException(e1, e1.getMessage());
+			throw new AdapterException(e1);
 		}
 		
-		String host = connectionInfo.getConnectionProperties().getPropertyEntry("HOST").getValue();
-		database = connectionInfo.getConnectionProperties().getPropertyEntry("DB_NAME").getValue();
-		
-		String jdbc_jar = "lib/sqljdbc.jar";
+		String jdbcurl = connectionInfo.getConnectionProperties().getPropertyEntry("jdbcurl").getValue();
+		String jdbcclass = connectionInfo.getConnectionProperties().getPropertyEntry("jdbcclass").getValue();		
+		String jdbcjar = connectionInfo.getConnectionProperties().getPropertyEntry("jdbcjar").getValue();
 
-		if(username.isEmpty() || password.isEmpty() )
-			throw new AdapterException("Credentials can not be empty");
 		
-		File file = new File(jdbc_jar);
+		File file = new File(jdbcjar);
 		if(!file.exists())
-			throw new AdapterException("No sqljdbc.jar is present at " + jdbc_jar);
+			throw new AdapterException("File not found on the Agent Host at " + jdbcjar);
 		
 		blobHandle = new HashMap<Long, InputStream>();
 		clobHandle = new HashMap<Long, Reader>();
 		try {
 			
-			URL u = new URL("jar:file:" + jdbc_jar + "!/");
+			URL u = new URL("jar:file:" + jdbcjar + "!/");
 			URLClassLoader ucl = new URLClassLoader(new URL[] { u });
 			
-			Driver d = (Driver)Class.forName(JDBC_DRIVER_NAME, true, ucl).newInstance();
+			Driver d = (Driver)Class.forName(jdbcclass, true, ucl).newInstance();
 			DriverManager.registerDriver(new DriverDelegator(d));
-			String replaced = JDBC_URL.replaceAll("HOST", host);
-			replaced = replaced.replaceAll("DB_NAME", database);
-			conn = DriverManager.getConnection(replaced,username,password);
+			conn = DriverManager.getConnection(jdbcurl, username, password);
 			stmt = conn.createStatement();
 		} catch (Exception e) {
 			String error = e.getMessage();
@@ -176,13 +167,22 @@ public class JDBCAdapter extends Adapter{
 		 * Cleanup connections, thread and all the element your adapter is using.
 		 */
 		try {
-			if(resultSet != null)
+			if(resultSet != null) {
 				resultSet.close();
-			if(browseResultSet != null)
+			}
+			if(browseResultSet != null) {
 				browseResultSet.close();
-			conn.close();
+			}
+			if (conn != null) {
+				conn.close();
+				conn = null;
+			}
 		} catch (SQLException e) {
-			throw new AdapterException(e.getMessage());
+			throw new AdapterException(e);
+		} finally {
+			resultSet = null;
+			browseResultSet = null;
+			conn = null;
 		}
 	}
 
@@ -211,7 +211,7 @@ public class JDBCAdapter extends Adapter{
 				 * Set the values for each columns 
 				 */
 				rowList.newRow();
-				List<Column>columns = rowList.getColumns();
+				List<Column> columns = rowList.getColumns();
 				for(int i=0; i < columns.size(); i++){
 					//Always add to last row
 					setValue(rowList.getRow(rowList.getRowCount()-1), columns.get(i), resultSet, i, rowNum);
@@ -276,80 +276,203 @@ public class JDBCAdapter extends Adapter{
 		if (browseResultSet != null) {
 			try {
 				browseResultSet.close();
+				browseResultSet = null;
 			} catch (SQLException e) {
 				logger.warn("Failed to close ResultSet.", e);
-			}
-		}
-		
-		if(this.nodeID != null){
-			try {
- 				DatabaseMetaData mds = conn.getMetaData();
-				browseResultSet = mds.getTables(nodeId, null, "%", null);
-			} catch (SQLException e) {
-				throw new AdapterException(e.getMessage());
 			}
 		}
 	}
 
 	/**
 	 * For a Database the browse would something like below.
-	 * -database
-	 * 		-owner
+	 * -catalog1
+	 * 		-schema1
 	 * 			-table1
 	 * 			-table2
-	 * 		-owner
+	 * 		-schema2
 	 * 			-table1
 	 * 			-table2
 	 * Since putting the whole tree in memory is expensive. It is rather
-	 * preferred that you create the tree dynamincally for each request.
+	 * preferred that you create the tree dynamically for each request.
 	 * 
-	 * You can make the nodeId unique by using database.owner.table1
+	 * You can make the nodeId unique by using catalog.schema.table
 	 * The dot separation gives an example on how to keep track of level. 
 	 */
 	@Override
 	public List<BrowseNode> browseMetadata() throws AdapterException {
 		/*
-		 * We will do a trick here. If node id is null, that means user is browsing at the root.
-		 * So return the current database name else return all tables belonging to this database.
+		 * The call sequence is setBrowseNodeId(uniquename) and then multiple calls of browseMetadata()
+		 * to return one page after the other of nodes. 
 		 */
 		List<BrowseNode> nodes = new ArrayList<BrowseNode>();
-		if(this.nodeID == null)
-		{
-			BrowseNode node = new BrowseNode(database, database);
-			/**This is a root node, we want to be expandable and not importable **/
-			node.setImportable(false); 
-			node.setExpandable(true);
-			nodes.add(node);
-		}
-		else{
-			try {
+		try {
+			if(this.nodeID == null)
+			{
+				/**This is a root node, we want to be expandable and not importable **/
+				if (browseOffset == 0) {
+					browseResultSet = conn.getMetaData().getCatalogs();
+				} else if (browseResultSet == null) {
+					/*
+					 * This should actually never happen. When the browseOffset != 0 the resultset should be open still.
+					 */
+					return null;
+				}
 				while(browseResultSet.next()){
-					//Now the tricky part of keeping track of offset.
-					//Since in this method we only require count amount of nodes.
-					//keep track of the offset that you have already returned.
 					browseOffset++;
-					//This is list of tables for owner dbo.
-					BrowseNode node = new BrowseNode(browseResultSet.getString(3), browseResultSet.getString(3));
-					/**These are table nodes, we want them to be importable and not expandable**/
-					node.setImportable(true);
-					node.setExpandable(false);
+					String catalogname = browseResultSet.getString(1);
+					BrowseNode node = new BrowseNode(catalogname, catalogname);
+					node.setImportable(false); 
+					/*
+					 *  we do not allow to expand a catalog which has a dot in its name 
+					 *  as that breaks the unique name format
+					 */
+					node.setExpandable(catalogname.indexOf('.') == -1);  
 					nodes.add(node);
-					if(browseOffset == fetchSize)
+					if(browseOffset % fetchSize == fetchSize-1)
 						break;
 				}
-			} catch (SQLException e) {
-				throw new AdapterException(e.getMessage());
+				if (browseOffset == 0) {
+					// This jdbc source has no catalogs hence a default is to be used
+					browseOffset++;
+					String catalogname = "<none>";
+					BrowseNode node = new BrowseNode(catalogname, catalogname);
+					node.setImportable(false); 
+					node.setExpandable(true);
+					nodes.add(node);
+				} else if(browseOffset % fetchSize != fetchSize-1) {
+					/*
+					 * We did exit above loop before reaching the fetch size, seems there is no more data.
+					 * Hence the browseResultSet can be closed
+					 */
+					browseResultSet.close();
+					browseResultSet = null;
+				}
+			} else {
+				String[] nodecomponents = this.nodeID.split("\\.");
+				
+				String catalogname = nodecomponents[0];
+				String catalog_search_string;
+				if (catalogname.equals("<none>")) {
+					catalog_search_string = null; // This means we return all schemas without a catalog whereas NULL would mean all schemas of all catalogs
+				} else {
+					catalog_search_string = catalogname;
+				}
+
+				if (nodecomponents.length == 1) {
+					// the catalog node got expanded
+					
+					if (browseOffset == 0) {
+						// get all Schemas of the current catalog
+						browseResultSet = conn.getMetaData().getSchemas(catalog_search_string, null);
+					} else if (browseResultSet == null) {
+						return null;
+					}
+					while(browseResultSet.next()){
+						browseOffset++;
+						String schemaname = browseResultSet.getString(1);
+						
+						// catalogname should be the same as requested but better play it safe
+						String catalogname_metadata = browseResultSet.getString(2);
+						if (catalogname_metadata == null) {
+							catalogname_metadata = "<none>";
+						}
+						String uniquename = catalogname_metadata + "." + schemaname;
+						BrowseNode node = new BrowseNode(uniquename, schemaname);
+						node.setImportable(false); 
+						/*
+						 *  we do not allow to expand a schema which has a dot in its name 
+						 *  as that breaks the unique name format
+						 */
+						node.setExpandable(schemaname.indexOf('.') == -1);  
+						nodes.add(node);
+						if(browseOffset % fetchSize == fetchSize-1)
+							break;
+					}
+					if (browseOffset == 0) {
+						// This jdbc source has no catalogs hence a default is to be used
+						browseOffset++;
+						String schemaname = "<none>";
+						String uniquename = catalogname + "." + schemaname;
+						BrowseNode node = new BrowseNode(uniquename, schemaname);
+						node.setImportable(false); 
+						node.setExpandable(true);  
+						nodes.add(node);
+					} else if(browseOffset % fetchSize != fetchSize-1) {
+						/*
+						 * We did exit above loop before reaching the fetch size, seems there is no more data.
+						 * Hence the browseResultSet can be closed
+						 */
+						browseResultSet.close();
+						browseResultSet = null;
+					}
+
+				} else {
+					// the nodeid is two levels deep: catalog.schema
+					
+					String schemaname = nodecomponents[1];
+					String schema_search_string;
+					if (schemaname.equals("<none>")) {
+						schema_search_string = null; // This means we return all schemas without a catalog whereas NULL would mean all schemas of all catalogs
+					} else {
+						schema_search_string = schemaname;
+					}
+					
+					
+					if (browseOffset == 0) {
+						// get all Schemas of the current catalog
+						browseResultSet = conn.getMetaData().getTables(catalog_search_string, schema_search_string, "%", new String[] {"TABLE", "VIEW", "SYSTEM TABLE"});
+					}
+					while(browseResultSet.next()){
+						browseOffset++;
+						
+						String catalogname_metadata = browseResultSet.getString(1);
+						if (catalogname_metadata == null) {
+							catalogname_metadata = "<none>";
+						}
+						String schemaname_metadata = browseResultSet.getString(2);
+						if (schemaname_metadata == null) {
+							schemaname_metadata = "<none>";
+						}
+						
+						String tablename = browseResultSet.getString(3);
+						String description = browseResultSet.getString(5);
+						
+						String uniquename = catalogname_metadata + "." + schemaname_metadata + "." + tablename;
+						BrowseNode node = new BrowseNode(uniquename, tablename);
+						node.setDescription(description);
+						
+						/*
+						 * Tablenames with a dot character in them break the unique name format, hence 
+						 * we cannot deal with those. We show them but do not allow to import them.
+						 */
+						node.setImportable(tablename.indexOf('.') == -1); 
+						node.setExpandable(false);
+						nodes.add(node);
+						if(browseOffset % fetchSize == fetchSize-1)
+							break;
+					}
+					if(browseOffset % fetchSize != fetchSize-1) {
+						/*
+						 * We did exit above loop before reaching the fetch size, seems there is no more data.
+						 * Hence the browseResultSet can be closed
+						 */
+						browseResultSet.close();
+						browseResultSet = null;
+					}
+				}
 			}
+			return nodes;
+		} catch (SQLException e) {
+			throw new AdapterException(e.getMessage());
 		}
-		return nodes;
 	}
 
 	/**
 	 * Helper Method
-	 * Call the appropiate method on the row the set the column value.
+	 * Call the appropriate method on the row the set the column value.
 	 * You can extend it to other datatypes.
 	 */
-	private void setValue(AdapterRow row, Column column,ResultSet rs,  int colIndex, int rowIndex) throws AdapterException, SQLException {
+	private void setValue(AdapterRow row, Column column, ResultSet rs, int colIndex, int rowIndex) throws AdapterException, SQLException {
 		Calendar cal = Calendar.getInstance();
 		Long lobId = (long) (rowIndex * this.fetchSize+  colIndex);
 		switch(column.getDataType()){
@@ -413,34 +536,57 @@ public class JDBCAdapter extends Adapter{
 				row.setColumnLobIdValue(colIndex, lobId, LobCharset.UTF_8);
 			}
 			break;
-//		case NCLOB:
-//			//We need to know which row and which col this blob belongs to so we can fetch it.
-//			NClob blob = rs.getNClob(colIndex+1);
-//			clobHandle.put(lobId, blob.getCharacterStream()); //rs.getUnicodeStream(colIndex+1));//  
-//			row.setColumnValue(colIndex, lobId);
-//			break;
 		default:
 			row.setColumnValue(colIndex, rs.getString(colIndex+1));
 		}
 	}
 
 	@Override
-	public Metadata importMetadata(String nodeId) throws AdapterException {
+	public Metadata importMetadata(String tableuniquename) throws AdapterException {
+		/*
+		 * nodeId does match the format: catalog.schema.tablename
+		 */
+		
+		String[] nodecomponents = tableuniquename.split("\\.");
+		if (nodecomponents.length != 3) {
+			throw new AdapterException("Unique Name of the table does not match the format catalog.schema.tablename: " + tableuniquename);
+		}
+		String catalogname = nodecomponents[0];
+		String catalog_search_string;
+		if (catalogname.equals("<none>")) {
+			catalog_search_string = null;
+		} else {
+			catalog_search_string = catalogname;
+		}
+
+		String schemaname = nodecomponents[1];
+		String schema_search_string;
+		if (schemaname.equals("<none>")) {
+			schema_search_string = null;
+		} else {
+			schema_search_string = schemaname;
+		}
+		
+		String tablename = nodecomponents[2];
+		if (tablename == null || tablename.length() == 0) {
+			throw new AdapterException("Table Name portion cannot be empty: " + tableuniquename);
+		}
+
 		TableMetadata metas = new TableMetadata();
-		metas.setName(nodeId);
-		metas.setPhysicalName(nodeId);
+		metas.setName(tableuniquename);
+		metas.setPhysicalName(tableuniquename);
 		try{
 			ResultSet rsColumns = null;
 			DatabaseMetaData meta = conn.getMetaData();
 			//catalog, schemaPattern, tableNamePatter, types
-			rsColumns = meta.getColumns(null, null, nodeId , null);
+			rsColumns = meta.getColumns(catalog_search_string, schema_search_string, tablename, null);
 			List<Column> cols = new ArrayList<Column>();
 			while (rsColumns.next()) {
 				Column col = getColumn(rsColumns);
 				cols.add(col);
 			}
 			metas.setColumns(cols);
-			metas.setUniqueKeys(getUniqueKeys(nodeId));
+			metas.setUniqueKeys(getUniqueKeys(tableuniquename));
 			setPrimaryFlagForColumns(metas);
 			
 		}catch(SQLException e){
@@ -471,7 +617,7 @@ public class JDBCAdapter extends Adapter{
 			columnType = java.sql.Types.NVARCHAR;
 		else if (typeName.compareTo("nchar") == 0)
 			columnType = java.sql.Types.NCHAR;
-//@Bug Index Server Changes peding. FIXME uncomment when IS is fixed
+//@Bug Index Server Changes pending. FIXME uncomment when IS is fixed
 		else if (typeName.compareTo("smalldatetime") == 0)
 			//columnType = -100;  //Since java does not have this, we create our own version.
 			columnType = java.sql.Types.TIMESTAMP;
@@ -568,8 +714,7 @@ public class JDBCAdapter extends Adapter{
 	}
 
 	@Override
-	public String getSourceVersion(RemoteSourceDescription remoteSourceDescription)
-					throws AdapterException {
+	public String getSourceVersion(RemoteSourceDescription remoteSourceDescription) throws AdapterException {
 		return null;
 	}
 
@@ -594,7 +739,7 @@ public class JDBCAdapter extends Adapter{
 	 * and rewrite it to match your system.
 	 */
 	@Override
-	public void executeStatement(String sql, StatementInfo info) throws AdapterException {
+	public void executeStatement(String sqlstatement, StatementInfo info) throws AdapterException {
 		/**
 		 *Since we have a simple adapter with no push down.
 		 *So we will directly use it. 
@@ -605,24 +750,16 @@ public class JDBCAdapter extends Adapter{
 		blobHandle.clear();
 		clobHandle.clear();
 
-		this.sql = SQLRewriter.rewriteSQL(sql);
+		String sourcesql = SQLRewriter.rewriteSQL(sqlstatement);
 			
-			try {
-				conn.setAutoCommit(false);
-				stmt.setFetchSize(fetchSize);//So that fetch size work.
-				/*if(resultSet!=null)
-					resultSet.close();*/ //invalid instance use bug. TODO
-				logger.trace(this.sql);
-				resultSet = stmt.executeQuery("use "+database+";" + this.sql);
-			} catch (SQLException e) {
-				throw new AdapterException(e.getMessage());
-			}
-			
-/*		}
-		catch ( Exception e ) {
-			throw new AdapterException(e.getLocalizedMessage());
-		}*/
-
+		try {
+			conn.setAutoCommit(false);
+			stmt.setFetchSize(fetchSize);//So that fetch size work.
+			logger.trace(sourcesql);
+			resultSet = stmt.executeQuery(sourcesql);
+		} catch (SQLException e) {
+			throw new AdapterException(e.getMessage());
+		}
 	}
 	/**
 	 * Adapter capabilities defines what push down capabilities this adapter has.
@@ -636,61 +773,59 @@ public class JDBCAdapter extends Adapter{
 	public Capabilities<AdapterCapability> getCapabilities(String version)
 			throws AdapterException {
 		Capabilities<AdapterCapability> capbility = new Capabilities<AdapterCapability>();
-		List<AdapterCapability> capibilities = new ArrayList<AdapterCapability>();
+		List<AdapterCapability> capabilities = new ArrayList<AdapterCapability>();
 		if( System.getenv("DP_AGENT_DIR") == null || System.getenv("CAPS_INI") == null ) {
-			capibilities.add(AdapterCapability.CAP_ALTER_TAB_WITH_ADD );
-			capibilities.add(AdapterCapability.CAP_ALTER_TAB_WITH_DROP );
-			capibilities.add(AdapterCapability.CAP_WINDOWING_FUNC);
-			capibilities.add(AdapterCapability.CAP_BI_ADD);
-			capibilities.add(AdapterCapability.CAP_BIGINT_BIND);
-			capibilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_GROUPBY);
-			capibilities.add(AdapterCapability.CAP_INSERT_SELECT_ORDERBY);
-			capibilities.add(AdapterCapability.CAP_DELETE);
+			capabilities.add(AdapterCapability.CAP_ALTER_TAB_WITH_ADD );
+			capabilities.add(AdapterCapability.CAP_ALTER_TAB_WITH_DROP );
+			capabilities.add(AdapterCapability.CAP_WINDOWING_FUNC);
+			capabilities.add(AdapterCapability.CAP_BI_ADD);
+			capabilities.add(AdapterCapability.CAP_BIGINT_BIND);
+			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_GROUPBY);
+			capabilities.add(AdapterCapability.CAP_INSERT_SELECT_ORDERBY);
+			capabilities.add(AdapterCapability.CAP_DELETE);
 
-			capibilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_PROJ);
-			capibilities.add(AdapterCapability.CAP_EXPR_IN_PROJ);
-			capibilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_PROJ);
-			capibilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE);
-			capibilities.add(AdapterCapability.CAP_EXPR_IN_WHERE);
-			capibilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_WHERE);
-			capibilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_INNER_JOIN);
-			capibilities.add(AdapterCapability.CAP_EXPR_IN_INNER_JOIN);
-			capibilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_INNER_JOIN);
-			capibilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_LEFT_OUTER_JOIN);
-			capibilities.add(AdapterCapability.CAP_EXPR_IN_LEFT_OUTER_JOIN);
-			capibilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_LEFT_OUTER_JOIN);
-			capibilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_FULL_OUTER_JOIN);
-			capibilities.add(AdapterCapability.CAP_EXPR_IN_FULL_OUTER_JOIN);
-			capibilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_FULL_OUTER_JOIN);
-			capibilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_GROUPBY);
-			capibilities.add(AdapterCapability.CAP_EXPR_IN_GROUPBY);
-			capibilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_GROUPBY);
-			capibilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_ORDERBY);
-			capibilities.add(AdapterCapability.CAP_EXPR_IN_ORDERBY);
-			capibilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_ORDERBY);
-			capibilities.add(AdapterCapability.CAP_SELECT);
-			capibilities.add(AdapterCapability.CAP_SCALAR_FUNCTIONS_NEED_ARGUMENT_CHECK);
-			capibilities.add(AdapterCapability.CAP_NONEQUAL_COMPARISON);
-			capibilities.add(AdapterCapability.CAP_OR_DIFFERENT_COLUMNS);	
-			capibilities.add(AdapterCapability.CAP_PROJECT);	
+			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_PROJ);
+			capabilities.add(AdapterCapability.CAP_EXPR_IN_PROJ);
+			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_PROJ);
+			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE);
+			capabilities.add(AdapterCapability.CAP_EXPR_IN_WHERE);
+			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_WHERE);
+			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_INNER_JOIN);
+			capabilities.add(AdapterCapability.CAP_EXPR_IN_INNER_JOIN);
+			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_INNER_JOIN);
+			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_LEFT_OUTER_JOIN);
+			capabilities.add(AdapterCapability.CAP_EXPR_IN_LEFT_OUTER_JOIN);
+			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_LEFT_OUTER_JOIN);
+			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_FULL_OUTER_JOIN);
+			capabilities.add(AdapterCapability.CAP_EXPR_IN_FULL_OUTER_JOIN);
+			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_FULL_OUTER_JOIN);
+			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_GROUPBY);
+			capabilities.add(AdapterCapability.CAP_EXPR_IN_GROUPBY);
+			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_GROUPBY);
+			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_ORDERBY);
+			capabilities.add(AdapterCapability.CAP_EXPR_IN_ORDERBY);
+			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_ORDERBY);
+			capabilities.add(AdapterCapability.CAP_SELECT);
+			capabilities.add(AdapterCapability.CAP_SCALAR_FUNCTIONS_NEED_ARGUMENT_CHECK);
+			capabilities.add(AdapterCapability.CAP_NONEQUAL_COMPARISON);
+			capabilities.add(AdapterCapability.CAP_OR_DIFFERENT_COLUMNS);	
+			capabilities.add(AdapterCapability.CAP_PROJECT);	
 
-			capibilities.add(AdapterCapability.CAP_LIKE);
-			capibilities.add(AdapterCapability.CAP_GROUPBY);	
-			capibilities.add(AdapterCapability.CAP_ORDERBY);	
-			capibilities.add(AdapterCapability.CAP_AGGREGATES);	
-			capibilities.add(AdapterCapability.CAP_AGGREGATE_COLNAME);	
-			capibilities.add(AdapterCapability.CAP_JOINS);	
-			capibilities.add(AdapterCapability.CAP_JOINS_OUTER);	
-			capibilities.add(AdapterCapability.CAP_AND);	
-			capibilities.add(AdapterCapability.CAP_OR);	
-			capibilities.add(AdapterCapability.CAP_BETWEEN);
-			capibilities.add(AdapterCapability.CAP_IN);
-			//capibilities.add(AdapterCapability.CAP_TABLE_CAP);	
-			//capibilities.add(AdapterCapability.CAP_COLUMN_CAP);	
-			capibilities.add(AdapterCapability.CAP_BI_SUBSTR);	
-			capibilities.add(AdapterCapability.CAP_BI_MOD);	
-			capibilities.add(AdapterCapability.CAP_AGGREGATES);	
-	    	capibilities.add(AdapterCapability.CAP_AND_DIFFERENT_COLUMNS);
+			capabilities.add(AdapterCapability.CAP_LIKE);
+			capabilities.add(AdapterCapability.CAP_GROUPBY);	
+			capabilities.add(AdapterCapability.CAP_ORDERBY);	
+			capabilities.add(AdapterCapability.CAP_AGGREGATES);	
+			capabilities.add(AdapterCapability.CAP_AGGREGATE_COLNAME);	
+			capabilities.add(AdapterCapability.CAP_JOINS);	
+			capabilities.add(AdapterCapability.CAP_JOINS_OUTER);	
+			capabilities.add(AdapterCapability.CAP_AND);	
+			capabilities.add(AdapterCapability.CAP_OR);	
+			capabilities.add(AdapterCapability.CAP_BETWEEN);
+			capabilities.add(AdapterCapability.CAP_IN);
+			capabilities.add(AdapterCapability.CAP_BI_SUBSTR);	
+			capabilities.add(AdapterCapability.CAP_BI_MOD);	
+			capabilities.add(AdapterCapability.CAP_AGGREGATES);	
+	    	capabilities.add(AdapterCapability.CAP_AND_DIFFERENT_COLUMNS);
 		}
 		else {
 
@@ -702,12 +837,12 @@ public class JDBCAdapter extends Adapter{
 				input = new FileInputStream(sFileName);
 				prop.load(input);
 
-				Enumeration e = prop.propertyNames();
+				Enumeration<?> e = prop.propertyNames();
 
 				while (e.hasMoreElements()) {
 					String key = (String) e.nextElement();
 					int value =  Integer.parseInt(prop.getProperty(key));				 
-					capibilities.add(AdapterCapability.valueOf(value));
+					capabilities.add(AdapterCapability.valueOf(value));
 				}
 			} catch (IOException e) {
 				throw new AdapterException(e,e.getLocalizedMessage());
@@ -715,7 +850,7 @@ public class JDBCAdapter extends Adapter{
 		}			
 
 
-		capbility.setCapabilities(capibilities);
+		capbility.setCapabilities(capabilities);
 		return capbility;
 	}
 	
@@ -771,14 +906,14 @@ public class JDBCAdapter extends Adapter{
 	}
 
 	@Override
-        public Metadata importMetadata(String nodeId, List<Parameter> dataprovisioningParameters) throws AdapterException {
-                return null;
-        }
+	public Metadata importMetadata(String nodeId, List<Parameter> dataprovisioningParameters) throws AdapterException {
+		return null;
+	}
 
 	@Override
-        public ParametersResponse queryParameters(String nodeId, List<Parameter> parametersValues) throws AdapterException {
-                return null;
-        }
+	public ParametersResponse queryParameters(String nodeId, List<Parameter> parametersValues) throws AdapterException {
+		return null;
+	}
 
 
 	@Override
