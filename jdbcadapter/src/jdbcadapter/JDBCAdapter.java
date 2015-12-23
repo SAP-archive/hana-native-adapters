@@ -151,12 +151,16 @@ public class JDBCAdapter extends Adapter{
 			Driver d = (Driver)Class.forName(jdbcclass, true, ucl).newInstance();
 			DriverManager.registerDriver(new DriverDelegator(d));
 			conn = DriverManager.getConnection(jdbcurl, username, password);
+			/*
+			 *  Forward-only allows the JDBC client to work more efficiently.
+			 *  But that is the default anyhow, hence no need to use
+			 *  stmt = conn.createStatement(ResultSet.TYPE_FORWARD_ONLY,ResultSet.CONCUR_READ_ONLY)
+			 *  
+			 */
 			stmt = conn.createStatement();
+			stmt.setFetchSize(fetchSize);
 		} catch (Exception e) {
-			String error = e.getMessage();
-			if(e.getMessage() == null)
-				error = e.toString();
-			throw new AdapterException(error);
+			throw new AdapterException(e);
 		} 
 	}
 
@@ -178,7 +182,7 @@ public class JDBCAdapter extends Adapter{
 				conn = null;
 			}
 		} catch (SQLException e) {
-			throw new AdapterException(e);
+			logger.warn("Issues when closing the connection", e);
 		} finally {
 			resultSet = null;
 			browseResultSet = null;
