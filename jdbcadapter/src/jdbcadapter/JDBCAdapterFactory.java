@@ -3,7 +3,6 @@ package jdbcadapter;
 import com.sap.hana.dp.adapter.sdk.Adapter;
 import com.sap.hana.dp.adapter.sdk.AdapterException;
 import com.sap.hana.dp.adapter.sdk.AdapterFactory;
-import com.sap.hana.dp.adapter.sdk.PropertyGroup;
 import com.sap.hana.dp.adapter.sdk.RemoteSourceDescription;
 
 public class JDBCAdapterFactory implements AdapterFactory{
