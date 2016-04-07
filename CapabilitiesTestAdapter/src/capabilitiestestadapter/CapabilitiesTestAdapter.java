@@ -24,11 +24,10 @@ import com.sap.hana.dp.adapter.sdk.parser.TableReference;
 public class CapabilitiesTestAdapter extends Adapter {
 
 	static Logger logger = LogManager.getLogger("CapabilitiesTestAdapter");
-	private String sql_received = null;
 	private static Capabilities<AdapterCapability> adaptercapabilities = new Capabilities<AdapterCapability>();
 	private String tablename_to_read;
 	
-	{
+	static {
 		/*
 		 * These are the minimum capabilities required. Without, the update statement 
 		 *   update v_adaptercaps set isset = 'TRUE' where CAPABILITY = 'CAP_NONEQUAL_COMPARISON';
@@ -72,8 +71,6 @@ public class CapabilitiesTestAdapter extends Adapter {
 	 */
 	@Override
 	public void executeStatement(String sql, StatementInfo info) throws AdapterException {
-		sql_received = sql;
-		
 		Query query = null;
 		List<ExpressionParserMessage> messageList = new ArrayList<ExpressionParserMessage>();
 		query = (Query) ExpressionParserUtil.buildQuery(sql, messageList);
@@ -95,6 +92,7 @@ public class CapabilitiesTestAdapter extends Adapter {
 	 */
 	@Override
 	public Capabilities<AdapterCapability> getCapabilities(String version) throws AdapterException {
+		System.out.println(adaptercapabilities.getCapabilities().toString());
 		return adaptercapabilities;
 	}
 
@@ -104,7 +102,7 @@ public class CapabilitiesTestAdapter extends Adapter {
 	}
 
 	/**
-	 * This method either returns one row for the SQLTABLE or all capabilities currently supported by 
+	 * This method either returns zero rows for the SQLTABLE or all capabilities currently supported by 
 	 * the SDK and the information if they are turned on or off.
 	 * Note that some capabilities cannot be changed, these are marked with a * at the end.
 	 * @see com.sap.hana.dp.adapter.sdk.Adapter#getNext(com.sap.hana.dp.adapter.sdk.AdapterRowSet)
@@ -113,14 +111,7 @@ public class CapabilitiesTestAdapter extends Adapter {
 	public void getNext(AdapterRowSet rows) throws AdapterException {
 		if (tablename_to_read != null) {
 			if (tablename_to_read.equals("SQLTABLE")) {
-				if (sql_received == null) {
-					return;
-				}
-				
-				AdapterRow row = rows.newRow();
-				row.setColumnValue(0, 1); 
-				row.setColumnValue(1, sql_received);
-				sql_received = null;
+				return;
 			} else if (tablename_to_read.equals("ADAPTERCAPS")) {
 				for (AdapterCapability cap : AdapterCapability.values()) {
 					AdapterRow row = rows.newRow();
@@ -135,10 +126,8 @@ public class CapabilitiesTestAdapter extends Adapter {
 							// These capabilities cannot be set to false
 							row.setColumnValue(1, "TRUE*");
 						}
-					} else if (cap != AdapterCapability.CAP_PROJECT) {
-						row.setColumnValue(1, "FALSE");
 					} else {
-						row.setColumnValue(1, "FALSE*");
+						row.setColumnValue(1, "FALSE");
 					}
 				}
 			}
@@ -279,15 +268,15 @@ public class CapabilitiesTestAdapter extends Adapter {
 				}
 				if (issetvalue != null) {
 					List<ExpressionBase> where = query.getWhereClause();
-					if (where.size() == 0) {
+					if (where == null || where.size() == 0) {
 						// No where clause, so all capabilities are impacted
 						int counter = 0;
 						if (issetvalue.booleanValue()) {
 							for (AdapterCapability cap : AdapterCapability.values()) {
-								if (cap != AdapterCapability.CAP_PROJECT) {
-									adaptercapabilities.setCapability(cap);
+								// if (cap != AdapterCapability.CAP_PROJECT) {
+									setCapability(cap);
 									counter++;
-								}
+								// }
 							}
 						} else {
 							for (AdapterCapability cap : AdapterCapability.values()) {
@@ -295,7 +284,7 @@ public class CapabilitiesTestAdapter extends Adapter {
 										cap != AdapterCapability.CAP_UPDATE &&
 										cap != AdapterCapability.CAP_WHERE &&
 										cap != AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE) {
-									adaptercapabilities.clearCapability(cap);
+									clearCapability(cap);
 									counter++;
 								}
 							}
@@ -319,10 +308,10 @@ public class CapabilitiesTestAdapter extends Adapter {
 											newcap != AdapterCapability.CAP_WHERE &&
 											newcap != AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE) {
 										if (issetvalue.booleanValue()) {
-											adaptercapabilities.setCapability(newcap);
+											setCapability(newcap);
 											return 1;
 										} else {
-											adaptercapabilities.clearCapability(newcap);
+											clearCapability(newcap);
 											return 1;
 										}
 									}
@@ -334,6 +323,21 @@ public class CapabilitiesTestAdapter extends Adapter {
 			}
 		}
 		return 0;
+	}
+	
+	private void setCapability(AdapterCapability newcap) {
+		// The adaptercapability is an arraylist, hence the same capability can be added multiple times theoretically.
+		// We prevent that by checking if it exists already or not
+		if (adaptercapabilities.hasCapability(newcap) == false) {
+			adaptercapabilities.setCapability(newcap);
+		}
+	}
+	
+	private void clearCapability(AdapterCapability newcap) {
+		// Since we check when adding that each is unique below while loop will be executed only once but better be safe.
+		while (adaptercapabilities.hasCapability(newcap)) {
+			adaptercapabilities.clearCapability(newcap);
+		}
 	}
 	
 	@Override
