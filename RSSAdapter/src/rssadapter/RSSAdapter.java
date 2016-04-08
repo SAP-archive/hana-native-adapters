@@ -87,6 +87,16 @@ public class RSSAdapter extends BaseAdapterClass {
 	public void close() throws AdapterException {
 	}
 	
+	@Override
+	public AdapterCapability[] getSDACapabilites() {
+		//These capabilities indicate that this is a real time adapter.
+		com.sap.hana.dp.adapter.sdk.AdapterConstant.AdapterCapability[] caps;
+		caps = new com.sap.hana.dp.adapter.sdk.AdapterConstant.AdapterCapability[3];
+		caps[0] = com.sap.hana.dp.adapter.sdk.AdapterConstant.AdapterCapability.CAP_TRANSACTIONAL_CDC;
+		caps[1] = com.sap.hana.dp.adapter.sdk.AdapterConstant.AdapterCapability.CAP_SELECT;
+		caps[2] = com.sap.hana.dp.adapter.sdk.AdapterConstant.AdapterCapability.CAP_METADATA_ATTRIBUTE;
+		return caps;
+	}	
 
 	@Override
 	protected void startSubscription(SubscriptionRuntimeInformation subscriptionruntime) throws AdapterException {
