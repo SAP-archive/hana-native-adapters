@@ -35,7 +35,6 @@ public class CapabilitiesTestAdapter extends Adapter {
 		 */
 		adaptercapabilities.setCapability(AdapterCapability.CAP_SELECT);
 		adaptercapabilities.setCapability(AdapterCapability.CAP_UPDATE);
-		adaptercapabilities.setCapability(AdapterCapability.CAP_WHERE);
 		adaptercapabilities.setCapability(AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE);
 	}
 	
@@ -282,7 +281,6 @@ public class CapabilitiesTestAdapter extends Adapter {
 							for (AdapterCapability cap : AdapterCapability.values()) {
 								if (cap != AdapterCapability.CAP_SELECT &&
 										cap != AdapterCapability.CAP_UPDATE &&
-										cap != AdapterCapability.CAP_WHERE &&
 										cap != AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE) {
 									clearCapability(cap);
 									counter++;
@@ -303,9 +301,9 @@ public class CapabilitiesTestAdapter extends Adapter {
 										v = v.substring(1, v.length()-1);
 									}
 									AdapterCapability newcap = AdapterCapability.valueOf(v);
-									if (newcap != AdapterCapability.CAP_SELECT &&
+									if (newcap != null && 
+											newcap != AdapterCapability.CAP_SELECT &&
 											newcap != AdapterCapability.CAP_UPDATE &&
-											newcap != AdapterCapability.CAP_WHERE &&
 											newcap != AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE) {
 										if (issetvalue.booleanValue()) {
 											setCapability(newcap);

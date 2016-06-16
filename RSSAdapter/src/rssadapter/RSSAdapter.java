@@ -70,7 +70,7 @@ public class RSSAdapter extends BaseAdapterClass {
 		if (tablename != null && tablename.equals(TableLoaderRSSFeed.RSSFEED)) {
 			TableLoaderRSSFeed.importMetadata(table);
 		} else {
-			throw new AdapterException("Unknow tablename");
+			throw new AdapterException("Unknown tablename");
 		}
 	}
 	
@@ -93,7 +93,6 @@ public class RSSAdapter extends BaseAdapterClass {
 		// This capabilities indicate that this is a real time adapter, hence should be set by the BaseAdapterClass
 		// As a temporary workaround, add it here explicitly.
 		AdapterCapability[] caps = {AdapterCapability.CAP_TRANSACTIONAL_CDC};
-		caps = new com.sap.hana.dp.adapter.sdk.AdapterConstant.AdapterCapability[3];
 		return caps; 
 	}	
 
