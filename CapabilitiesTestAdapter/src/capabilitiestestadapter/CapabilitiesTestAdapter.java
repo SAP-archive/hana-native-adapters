@@ -358,5 +358,41 @@ public class CapabilitiesTestAdapter extends Adapter {
 		return null;
 	}
 
+	@Override
+	public void closeResultSet() throws AdapterException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void executeCall(FunctionMetadata arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public Metadata getMetadataDetail(String arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public CallableProcedure prepareCall(ProcedureMetadata arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void setNodesListFilter(RemoteObjectsFilter arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void validateCall(FunctionMetadata arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		
+	}
+
 
 }

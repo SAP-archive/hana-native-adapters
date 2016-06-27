@@ -42,16 +42,20 @@ import com.sap.hana.dp.adapter.sdk.AdapterException;
 import com.sap.hana.dp.adapter.sdk.AdapterRow;
 import com.sap.hana.dp.adapter.sdk.AdapterRowSet;
 import com.sap.hana.dp.adapter.sdk.BrowseNode;
+import com.sap.hana.dp.adapter.sdk.CallableProcedure;
 import com.sap.hana.dp.adapter.sdk.Capabilities;
 import com.sap.hana.dp.adapter.sdk.Column;
 import com.sap.hana.dp.adapter.sdk.CredentialEntry;
 import com.sap.hana.dp.adapter.sdk.CredentialProperties;
 import com.sap.hana.dp.adapter.sdk.DataDictionary;
+import com.sap.hana.dp.adapter.sdk.FunctionMetadata;
 import com.sap.hana.dp.adapter.sdk.Metadata;
 import com.sap.hana.dp.adapter.sdk.Parameter;
 import com.sap.hana.dp.adapter.sdk.ParametersResponse;
+import com.sap.hana.dp.adapter.sdk.ProcedureMetadata;
 import com.sap.hana.dp.adapter.sdk.PropertyEntry;
 import com.sap.hana.dp.adapter.sdk.PropertyGroup;
+import com.sap.hana.dp.adapter.sdk.RemoteObjectsFilter;
 import com.sap.hana.dp.adapter.sdk.RemoteSourceDescription;
 import com.sap.hana.dp.adapter.sdk.StatementInfo;
 import com.sap.hana.dp.adapter.sdk.TableMetadata;
@@ -931,6 +935,48 @@ public class JDBCAdapter extends Adapter{
 	public DataDictionary loadColumnsDictionary() {
 		// TODO Auto-generated method stub
 		return null;
+	}
+
+
+	@Override
+	public void closeResultSet() throws AdapterException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public void executeCall(FunctionMetadata arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public Metadata getMetadataDetail(String arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public CallableProcedure prepareCall(ProcedureMetadata arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+	@Override
+	public void setNodesListFilter(RemoteObjectsFilter arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		
+	}
+
+
+	@Override
+	public void validateCall(FunctionMetadata arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		
 	}	
 }
 
@@ -973,6 +1019,5 @@ class DriverDelegator implements Driver {
     public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
           throw new SQLFeatureNotSupportedException();
     }
-
     
 }

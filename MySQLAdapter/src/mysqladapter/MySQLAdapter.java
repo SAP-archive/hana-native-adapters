@@ -1,14 +1,23 @@
 package mysqladapter;
 
+import java.io.File;
+import java.io.FilenameFilter;
+import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.sql.Connection;
+import java.sql.Driver;
 import java.sql.DriverManager;
+import java.sql.DriverPropertyInfo;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -18,23 +27,28 @@ import com.sap.hana.dp.adapter.sdk.AdapterCDC;
 import com.sap.hana.dp.adapter.sdk.AdapterConstant.AdapterCapability;
 import com.sap.hana.dp.adapter.sdk.AdapterConstant.DataType;
 import com.sap.hana.dp.adapter.sdk.AdapterConstant.LobCharset;
+
 import com.sap.hana.dp.adapter.sdk.AdapterException;
 import com.sap.hana.dp.adapter.sdk.AdapterRow;
 import com.sap.hana.dp.adapter.sdk.AdapterRowSet;
 import com.sap.hana.dp.adapter.sdk.AdapterStatistics;
 import com.sap.hana.dp.adapter.sdk.BrowseNode;
+import com.sap.hana.dp.adapter.sdk.CallableProcedure;
 import com.sap.hana.dp.adapter.sdk.Capabilities;
 import com.sap.hana.dp.adapter.sdk.Column;
 import com.sap.hana.dp.adapter.sdk.CredentialEntry;
 import com.sap.hana.dp.adapter.sdk.CredentialProperties;
 import com.sap.hana.dp.adapter.sdk.DataDictionary;
+import com.sap.hana.dp.adapter.sdk.FunctionMetadata;
 import com.sap.hana.dp.adapter.sdk.LatencyTicketSpecification;
 import com.sap.hana.dp.adapter.sdk.Metadata;
 import com.sap.hana.dp.adapter.sdk.Parameter;
 import com.sap.hana.dp.adapter.sdk.ParametersResponse;
+import com.sap.hana.dp.adapter.sdk.ProcedureMetadata;
 import com.sap.hana.dp.adapter.sdk.PropertyEntry;
 import com.sap.hana.dp.adapter.sdk.PropertyGroup;
 import com.sap.hana.dp.adapter.sdk.ReceiverConnection;
+import com.sap.hana.dp.adapter.sdk.RemoteObjectsFilter;
 import com.sap.hana.dp.adapter.sdk.RemoteSourceDescription;
 import com.sap.hana.dp.adapter.sdk.StatementInfo;
 import com.sap.hana.dp.adapter.sdk.SubscriptionSpecification;
@@ -280,14 +294,29 @@ public class MySQLAdapter extends AdapterCDC {
 		PropertyGroup connectionInfo = new PropertyGroup("connParam", "Connection Parameters",
 				"The Connection parameters for the connection");
 		PropertyEntry p = new PropertyEntry("server", "Server", "The address of the Mysql server", true);
-		p.setDefaultValue("mo-1c100dee5.mo.sap.corp");
+		// p.setDefaultValue("mo-1c100dee5.mo.sap.corp");
 		connectionInfo.addProperty(p);
 		p = new PropertyEntry("port", "Port", "The port number of the Mysql server", true);
 		p.setDefaultValue("3306");
 		connectionInfo.addProperty(p);
 
 		p = new PropertyEntry("databaseName", "Database name", "The name of the database to connect to", true);
-		p.setDefaultValue("ct_stage");
+		p.setDefaultValue("sys");
+		connectionInfo.addProperty(p);
+
+		p = new PropertyEntry("jdbcjar", "Location of mysql jdbc jar file", "The full path to the mysql jdbc driver jar file on the agent host", true);
+		String libdirpath = System.getProperty("user.dir") + System.getProperty("file.separator") + "lib";
+		File libdir = new File(libdirpath);
+		if (libdir.exists() && libdir.isDirectory()) {
+			File[] jars = libdir.listFiles(mysqljarfilesFilter);
+			if (jars != null && jars.length > 0) {
+				try {
+					p.setDefaultValue(jars[0].getCanonicalPath());
+				} catch (IOException e) {
+					logger.log(Level.INFO, "Cannot convert File into canonical path");
+				}
+			}
+		}
 		connectionInfo.addProperty(p);
 
 		CredentialProperties credentialProperties = new CredentialProperties();
@@ -358,15 +387,28 @@ public class MySQLAdapter extends AdapterCDC {
 
 	@Override
 	public void open(RemoteSourceDescription connectionInfo, boolean isCDC) throws AdapterException {
-
+		String jdbcjar = connectionInfo.getConnectionProperties().getPropertyEntry("jdbcjar").getValue();
+		
 		try {
-			Class.forName("com.mysql.jdbc.Driver");
-		} catch (ClassNotFoundException e) {
-			logger.log(Level.WARN, "Error loading com.mysql.jdbc.Driver");
-			logger.log(Level.ERROR, e.getMessage(), e);
-			throw new AdapterException(e,
-					"com.mysql.jdbc.Driver not found on the adapter class path. Please make sure that you have access to the driver.");
-		}
+			
+			URL u = new URL("jar:file:" + jdbcjar + "!/");
+			URLClassLoader ucl = new URLClassLoader(new URL[] { u });
+			
+			Driver d;
+			try {
+				d = (Driver)Class.forName("com.mysql.jdbc.Driver", true, ucl).newInstance();
+			} catch (ClassNotFoundException e) {
+				logger.log(Level.WARN, "Error loading com.mysql.jdbc.Driver");
+				logger.log(Level.ERROR, e.getMessage(), e);
+				throw new AdapterException(e,
+						"com.mysql.jdbc.Driver not found in the jar file.");
+			}
+			DriverManager.registerDriver(new DriverDelegator(d));
+		} catch (Exception e) {
+			throw new AdapterException(e);
+		} 
+
+
 		String username = "";
 		String password = "";
 		try {
@@ -599,4 +641,90 @@ public class MySQLAdapter extends AdapterCDC {
 
 	}
 
+	@Override
+	public void closeResultSet() throws AdapterException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void executeCall(FunctionMetadata arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public Metadata getMetadataDetail(String arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public CallableProcedure prepareCall(ProcedureMetadata arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void setNodesListFilter(RemoteObjectsFilter arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void validateCall(FunctionMetadata arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	class DriverDelegator implements Driver {
+	    private Driver driver;
+	    
+	    DriverDelegator(Driver d) { 
+	    	this.driver = d;
+	    }
+	    public boolean acceptsURL(String u) throws SQLException {
+	        return this.driver.acceptsURL(u);
+	    }
+	    
+		@Override
+		public Connection connect(String u, Properties p) throws SQLException {
+			return this.driver.connect(u, p);
+		}
+		@Override
+		public int getMajorVersion() {
+			return this.driver.getMajorVersion();
+		}
+		@Override
+		public int getMinorVersion() {
+			return this.driver.getMinorVersion();
+		}
+		@Override
+		public DriverPropertyInfo[] getPropertyInfo(String arg0, Properties arg1)
+				throws SQLException {
+			return this.driver.getPropertyInfo(arg0, arg1);
+		}
+		@Override
+		public boolean jdbcCompliant() {
+			return this.driver.jdbcCompliant();
+		}
+		/**
+		 * Allow on 1.7 java 
+		 * @return
+		 * @throws SQLFeatureNotSupportedException
+		 */
+	    public java.util.logging.Logger getParentLogger() throws SQLFeatureNotSupportedException {
+	          throw new SQLFeatureNotSupportedException();
+	    }
+	}
+	
+	FilenameFilter mysqljarfilesFilter = new FilenameFilter() {
+	    public boolean accept(File file, String name) {
+	        if (name.endsWith(".jar") && name.startsWith("mysql-connector-java")) {
+	            return true;
+	        } else {
+	            return false;
+	        }
+	    }
+	};
 }

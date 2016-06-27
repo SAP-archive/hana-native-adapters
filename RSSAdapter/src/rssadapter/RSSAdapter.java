@@ -14,9 +14,11 @@ import com.sap.hana.dp.adapter.sdk.AdapterConstant.RowType;
 import com.sap.hana.dp.adapter.sdk.AdapterException;
 import com.sap.hana.dp.adapter.sdk.BrowseNode;
 import com.sap.hana.dp.adapter.sdk.CredentialProperties;
+import com.sap.hana.dp.adapter.sdk.Metadata;
 import com.sap.hana.dp.adapter.sdk.Parameter;
 import com.sap.hana.dp.adapter.sdk.PropertyEntry;
 import com.sap.hana.dp.adapter.sdk.PropertyGroup;
+import com.sap.hana.dp.adapter.sdk.RemoteObjectsFilter;
 import com.sap.hana.dp.adapter.sdk.RemoteSourceDescription;
 import com.sap.hana.dp.adapter.sdk.StatementInfo;
 import com.sap.hana.dp.adapter.sdk.SubscriptionSpecification;
@@ -168,6 +170,18 @@ public class RSSAdapter extends BaseAdapterClass {
 
 	@Override
 	protected void stopSubscrition(SubscriptionSpecification subscription) {
+	}
+
+	@Override
+	public Metadata getMetadataDetail(String arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public void setNodesListFilter(RemoteObjectsFilter arg0) throws AdapterException {
+		// TODO Auto-generated method stub
+		
 	}
 
 }
