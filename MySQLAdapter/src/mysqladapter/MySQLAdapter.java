@@ -4,9 +4,11 @@ import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.DriverPropertyInfo;
@@ -16,6 +18,8 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Properties;
 
@@ -27,7 +31,6 @@ import com.sap.hana.dp.adapter.sdk.AdapterCDC;
 import com.sap.hana.dp.adapter.sdk.AdapterConstant.AdapterCapability;
 import com.sap.hana.dp.adapter.sdk.AdapterConstant.DataType;
 import com.sap.hana.dp.adapter.sdk.AdapterConstant.LobCharset;
-
 import com.sap.hana.dp.adapter.sdk.AdapterException;
 import com.sap.hana.dp.adapter.sdk.AdapterRow;
 import com.sap.hana.dp.adapter.sdk.AdapterRowSet;
@@ -67,8 +70,9 @@ public class MySQLAdapter extends AdapterCDC {
 	private String browseNodeId;
 	private int metaOffset;
 	private ResultSet results;
-	private int rowsReadTotal = 0;
-	private int chunksReadTotal = 0;
+	
+	private Hashtable<Long, byte[]> lobindex = new Hashtable<Long, byte[]>();
+	private Hashtable<Long, Integer> lobindexlastread = new Hashtable<Long, Integer>();
 
 	@Override
 	public void beginTransaction() throws AdapterException {
@@ -89,7 +93,7 @@ public class MySQLAdapter extends AdapterCDC {
 
 				while (rs.next()) {
 					String nodeName = rs.getString(1);
-					BrowseNode node = new BrowseNode(nodeName, nodeName.toUpperCase());
+					BrowseNode node = new BrowseNode(nodeName, nodeName );
 					node.setImportable(isImportable);
 					node.setExpandable(isExpandable);
 					nodes.add(node);
@@ -99,16 +103,14 @@ public class MySQLAdapter extends AdapterCDC {
 				logger.log(Level.WARN, "Provided browseNodeId. Don't know how this happened");
 			}
 		} catch (SQLException e) {
-			logger.log(Level.WARN, "Error browsing metadata.");
-			logger.log(Level.ERROR, e.getMessage(), e);
-			throw new AdapterException(e, e.getMessage());
+			throw new AdapterException(e);
 		}
 		return nodes;
 	}
 
 	private ResultSet getTablesForDatabase(String database) throws SQLException {
 		PreparedStatement st = this.conn.prepareStatement(
-				"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE UPPER(TABLE_SCHEMA)=UPPER(?) LIMIT ? OFFSET ?");
+				"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA=? LIMIT ? OFFSET ?");
 		st.setString(1, databaseName);
 		st.setInt(2, this.fetchsize);
 		st.setInt(3, this.metaOffset);
@@ -119,20 +121,21 @@ public class MySQLAdapter extends AdapterCDC {
 	@Override
 	public void close() throws AdapterException {
 		try {
-			rowsReadTotal = 0;
-			chunksReadTotal = 0;
+			lobindex.clear();
+			lobindexlastread.clear();
 			if (results != null) {
 				results.close();
+				results = null;
 			}
 
 			if (conn != null) {
 				conn.close();
+				conn = null;
 			}
 
 			logger.log(Level.INFO, "Closed the connection");
-		} catch (Exception e) {
-			logger.log(Level.WARN, "Error closing the connection.");
-			logger.log(Level.ERROR, e.getMessage(), e);
+		} catch (SQLException e) {
+			throw new AdapterException(e);
 		}
 	}
 
@@ -160,6 +163,7 @@ public class MySQLAdapter extends AdapterCDC {
 		Capabilities<AdapterCapability> capability = new Capabilities<AdapterCapability>();
 		capability.setCapability(AdapterCapability.CAP_SELECT);
 		capability.setCapability(AdapterCapability.CAP_AND);
+		capability.setCapability(AdapterCapability.CAP_PROJECT);
 		capability.setCapability(AdapterCapability.CAP_JOINS);
 		capability.setCapability(AdapterCapability.CAP_LIMIT);
 		capability.setCapability(AdapterCapability.CAP_LIMIT_ARG);
@@ -176,7 +180,26 @@ public class MySQLAdapter extends AdapterCDC {
 
 	@Override
 	public int getLob(long lobId, byte[] bytes, int bufferSize) throws AdapterException {
-		return 0;
+		if (lobindex.contains(lobId) == false) {
+			return 0;
+		} else {
+			byte[] data = lobindex.get(lobId);
+			Integer startpoint = lobindexlastread.get(lobId);
+			if (startpoint == null) {
+				startpoint = 0;
+			}
+			int length = bufferSize;
+			if (data.length-startpoint<length) {
+				length = data.length-startpoint;
+				System.arraycopy(data, startpoint, bytes, 0, length);
+				lobindex.remove(lobId);
+				lobindexlastread.remove(lobId);
+			} else {
+				System.arraycopy(data, startpoint, bytes, 0, length);
+				lobindexlastread.put(lobId, length);
+			}
+			return length;
+		}
 	}
 
 	@Override
@@ -186,103 +209,139 @@ public class MySQLAdapter extends AdapterCDC {
 		 */
 		int resultRowsRead = 0;
 		try {
-			ResultSetMetaData metaData = this.results.getMetaData();
-			int count = metaData.getColumnCount();
-
-			while (resultRowsRead < this.fetchsize && this.results.next()) {
-
-				int mappedIndex = 0;
-				AdapterRow row = rows.newRow();
-				resultRowsRead++;
-				rowsReadTotal++;
-
-				for (int colIndex = 1; colIndex <= count; colIndex++) {
-					String mysqltype = metaData.getColumnTypeName(colIndex);
-					mappedIndex = colIndex - 1;
-
-					Object value = this.results.getObject(colIndex);
-					if (value == null) {
-						row.setColumnNull(mappedIndex);
-						continue;
-					}
-
-					switch (mysqltype.toLowerCase()) {
-					case "varchar":
-					case "char":
-						row.setColumnValue(mappedIndex, value.toString());
-						break;
-					case "bigint":
-					case "bigint unsigned":
-						row.setColumnValue(mappedIndex, this.results.getLong(colIndex));
-						break;
-					case "longtext":
-						row.setColumnLobValue(mappedIndex, this.results.getBytes(colIndex), LobCharset.UTF_8);
-						break;
-					case "datetime":
-						row.setColumnValue(mappedIndex, new Timestamp(value.toString()));
-						break;
-					case "int":
-						int setVzal = this.results.getInt(colIndex);
-						row.setColumnValue(mappedIndex, setVzal);
-						break;
-					case "int unsigned":
-						row.setColumnValue(mappedIndex, this.results.getLong(colIndex));
-						break;
-					case "decimal":
-					case "decimal unsigned":
-						row.setColumnValue(mappedIndex, this.results.getDouble(colIndex));
-						break;
-					case "text":
-						row.setColumnLobValue(mappedIndex, this.results.getBytes(colIndex), LobCharset.UTF_8);
-						break;
-					case "tinyint":
-						row.setColumnValue(mappedIndex, this.results.getInt(colIndex));
-						break;
-					case "tinyblob":
-						row.setColumnValue(mappedIndex, new String(this.results.getBytes(colIndex), "UTF-8"));
-						break;
-					case "date":
-						row.setColumnValue(mappedIndex, new Timestamp(this.results.getDate(colIndex)));
-						break;
-					case "timestamp":
-						row.setColumnValue(mappedIndex, new Timestamp(this.results.getTimestamp(colIndex)));
-						break;
-					case "float":
-						row.setColumnValue(mappedIndex, this.results.getDouble(colIndex));
-						break;
-					case "longblob":
-						row.setColumnLobValue(mappedIndex, this.results.getBytes(colIndex), LobCharset.UTF_8);
-						break;
-					case "mediumtext":
-						row.setColumnLobValue(mappedIndex, this.results.getBytes(colIndex), LobCharset.UTF_8);
-						break;
-					case "mediumblob":
-						row.setColumnLobValue(mappedIndex, this.results.getBytes(colIndex), LobCharset.UTF_8);
-						break;
-					case "enum":
-						row.setColumnValue(mappedIndex, value.toString());
-						break;
-					}
-				}
-			}
-
-			if (resultRowsRead == 0) {
-				// all or no rows read
-				logger.log(Level.INFO, "Rows read " + rowsReadTotal + " in " + chunksReadTotal + " chunks");
-				rowsReadTotal = 0;
-				chunksReadTotal = 0;
-
-				logger.log(Level.INFO, "Trying to close the result set");
-				if (null != this.results) {
-					this.results.close();
-					logger.log(Level.INFO, "Result set closed");
-				}
+			if (this.results.isAfterLast()) {
+				this.results.close();
 			} else {
-				chunksReadTotal++;
+				ResultSetMetaData metaData = this.results.getMetaData();
+				int count = metaData.getColumnCount();
+	
+				while (resultRowsRead < this.fetchsize && this.results.next()) {
+	
+					int mappedIndex = 0;
+					AdapterRow row = rows.newRow();
+					resultRowsRead++;
+					String typename;
+					String classname;
+	
+					for (int colIndex = 1; colIndex <= count; colIndex++) {
+						mappedIndex = colIndex - 1;
+	
+						Object value = this.results.getObject(colIndex);
+						if (value == null) {
+							row.setColumnNull(mappedIndex);
+						} else {
+							classname = metaData.getColumnClassName(colIndex);
+							typename = metaData.getColumnTypeName(colIndex);
+	
+							switch (classname) {
+							case "java.lang.Boolean":
+								switch (typename) {
+								case "BIT": // BIT is always a VARCHAR in Hana
+									row.setColumnValue(mappedIndex, (((Boolean) value).booleanValue()==true?"1":"0"));
+									break;
+								case "TINYINT": // TINYINT[1], BOOL, BOOLEAN might be a java.langBoolean and a INTEGER in Hana
+									row.setColumnValue(mappedIndex, (((Boolean) value).booleanValue()==true?1:0));
+									break;
+								}
+								break;
+							case "[B":
+								switch (typename) {
+								case "BIT": // A BIT is a VARCHAR in Hana
+									StringBuffer buffer = new StringBuffer();
+									byte[] bytes = (byte[]) value;
+									for(byte b : bytes) {
+										buffer.append(Integer.toBinaryString(b));
+									}
+									row.setColumnValue(mappedIndex, buffer.toString());
+									break;
+								case "TINYBLOB":
+									row.setColumnValue(mappedIndex, ((byte[]) value));
+									break;
+								case "LONGBLOB":
+								case "MEDIUMBLOB":
+								case "BLOB":
+									byte[] valuebytes = (byte[]) value;
+									if (valuebytes.length < AdapterRow.MAX_ASCII_INLINE_LOB_LENGTH) {
+										row.setColumnValue(mappedIndex, valuebytes);
+									} else {
+										lobindex.put(Long.valueOf(valuebytes.hashCode()), valuebytes);
+									}
+									break;
+								}
+								row.setColumnValue(mappedIndex, (byte[]) value);
+								break;
+							case "java.lang.Integer":
+								row.setColumnValue(mappedIndex, (Integer) value);
+								break;
+							case "java.math.BigInteger":
+								java.math.BigInteger bigintvalue = (java.math.BigInteger) value;
+								row.setColumnValue(mappedIndex, bigintvalue.doubleValue());
+								break;
+							case "java.lang.Long":
+								row.setColumnValue(mappedIndex, (Long) value);
+								break;
+							case "java.lang.Float":
+								row.setColumnValue(mappedIndex, (Float) value);
+								break;
+							case "java.lang.Double":
+								row.setColumnValue(mappedIndex, (Double) value);
+								break;
+							case "java.math.BigDecimal":
+								row.setColumnValue(mappedIndex, (BigDecimal) value);
+								break;
+							case "java.sql.Date":
+								if (typename.equals("YEAR")) {
+									// A year datatype might be returned as java.sql.Date but its Hana datatype is INTEGER always - see importMetadata
+									Calendar cal = Calendar.getInstance();
+									cal.setTime((Date) value);
+									row.setColumnValue(mappedIndex, cal.get(Calendar.YEAR));
+								} else {
+									row.setColumnValue(mappedIndex, new Timestamp(this.results.getDate(colIndex)));
+								}
+								break;
+							case "java.sql.Timestamp":
+								row.setColumnValue(mappedIndex, new Timestamp(this.results.getTimestamp(colIndex)));
+								break;
+							case "java.sql.Time":
+								row.setColumnValue(mappedIndex, new Timestamp(this.results.getTime(colIndex)));
+								break;
+							case "java.sql.Short":
+								row.setColumnValue(mappedIndex, ((Short) value).intValue());
+								break;
+							case "java.lang.String":
+								switch (typename) {
+								case "CHAR":
+								case "VARCHAR":
+								case "TINYTEXT":
+									row.setColumnValue(mappedIndex, (String) value);
+									break;
+								case "TEXT":
+								case "MEDIUMTEXT":
+								case "LONGTEXT":
+									String valuestring = (String) value;
+									if (valuestring.length() < AdapterRow.MAX_CLOB_INLINE_LOB_LENGTH) {
+										row.setColumnValue(mappedIndex, (String) value);
+									} else {
+										Long id = Long.valueOf(valuestring.hashCode());
+										try {
+											lobindex.put(id, valuestring.getBytes("UTF-8"));
+											row.setColumnLobIdValue(mappedIndex, id, LobCharset.UTF_8);
+										} catch (UnsupportedEncodingException e) {
+										}
+									}
+									break;
+								}
+								break;
+							default:
+								logger.info("Class: " + classname + " not handled");
+							}
+						}
+					}
+				}
 			}
 
-		} catch (Exception e) {
-			logger.log(Level.WARN, e.getMessage());
+		} catch (SQLException e) {
+			throw new AdapterException(e);
 		}
 
 	}
@@ -341,7 +400,8 @@ public class MySQLAdapter extends AdapterCDC {
 		List<Column> schema = new ArrayList<Column>();
 		try {
 			PreparedStatement st = conn.prepareStatement(
-					"SELECT UPPER(COLUMN_NAME) AS COLUMN_NAME, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, DATA_TYPE, COLUMN_TYPE, COLUMN_DEFAULT, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE UPPER(TABLE_SCHEMA)=UPPER(?) AND UPPER(TABLE_NAME) = UPPER(?) ORDER BY ORDINAL_POSITION");
+					"SELECT COLUMN_NAME AS COLUMN_NAME, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, DATA_TYPE, COLUMN_TYPE, " +
+					" COLUMN_DEFAULT, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME = ? ORDER BY ORDINAL_POSITION");
 			st.setString(1, this.databaseName);
 			st.setString(2, nodeId);
 			// st.setInt(3, this.fetchsize);
@@ -349,29 +409,18 @@ public class MySQLAdapter extends AdapterCDC {
 			logger.log(Level.INFO, "Query: " + st.toString());
 			ResultSet rs = st.executeQuery();
 			while (rs.next()) {
-				String column_name = rs.getString("COLUMN_NAME");
-				DataType dataType = getHANADatatype(rs.getString("DATA_TYPE"), rs.getString("COLUMN_TYPE"));
-				Column col = new Column(column_name, dataType);
-				col.setNullable(rs.getString("IS_NULLABLE") == "YES");
-				if (rs.getInt("NUMERIC_PRECISION") != 0) {
-					col.setPrecision(rs.getInt("NUMERIC_PRECISION"));
-				}
-				if (rs.getInt("NUMERIC_SCALE") != 0) {
-					col.setScale(rs.getInt("NUMERIC_SCALE"));
-				}
-				int length = 0;
 				String s = rs.getString("CHARACTER_MAXIMUM_LENGTH");
+				int length = 0;
 				if (s != null && !s.isEmpty()) {
 					try {
 						length = Integer.parseInt(s);
 					} catch (NumberFormatException ex) {
 						logger.log(Level.WARN, "Parsing int: " + s);
 					}
-					col.setLength(length);
 				}
-				if (dataType == DataType.NVARCHAR && length == 0) {
-					col.setLength(255);
-				}
+				Column col = getHANAColumn(rs.getString("COLUMN_NAME"), rs.getString("DATA_TYPE"), rs.getString("COLUMN_TYPE"),
+						rs.getString("IS_NULLABLE") == "YES", rs.getInt("NUMERIC_PRECISION"), rs.getInt("NUMERIC_SCALE"),
+						length);
 				schema.add(col);
 			}
 		} catch (SQLException e) {
@@ -528,51 +577,126 @@ public class MySQLAdapter extends AdapterCDC {
 	public boolean supportsRecovery() {
 		return false;
 	}
+	
+	private Column getHANAColumn(String columnname, String mysqltype, String mysqltypedetails, boolean nullable, int precision, int scale, int length) {
+		
+		Column col = new Column();
+		col.setName(columnname);
+		col.setNullable(nullable);
+		System.out.println(mysqltype + ", " + mysqltypedetails + ", " + length);
+		if (precision != 0) {
+			col.setPrecision(precision);
+		}
+		if (scale != 0) {
+			col.setScale(scale);
+		}
+		col.setLength(length);
 
-	private DataType getHANADatatype(String mysqltype, String mysqltypedetails) {
+
 		switch (mysqltype) {
-		case "varchar":
-			return DataType.NVARCHAR;
-		case "bigint":
-			return DataType.BIGINT;
-		case "longtext":
-			return DataType.NCLOB;
-		case "datetime":
-		case "timestamp":
-			return DataType.TIMESTAMP;
-		case "int":
-			if (mysqltypedetails.contains("unsigned")) {
-				return DataType.BIGINT;
-			} else {
-				return DataType.INTEGER;
+		// MySQL Numeric Type Overview (integers)
+		case "bit":
+			col.setDataType(DataType.VARCHAR);
+			if (length == 0) {
+				if (precision == 0) {
+					col.setLength(64);
+				} else {
+					col.setLength(precision);
+				}
 			}
+			break;
+		case "bigint":
+			col.setDataType(DataType.BIGINT);
+			break;
+		case "int":
+		case "integer":
+			if (mysqltypedetails.contains("unsigned")) {
+				col.setDataType(DataType.BIGINT);
+			} else {
+				col.setDataType(DataType.INTEGER);
+			}
+			break;
+		case "tinyint":
+		case "bool":
+		case "boolean":
+			col.setDataType(DataType.TINYINT);
+			break;
+		case "smallint":
+		case "mediumint":
+			col.setDataType(DataType.INTEGER);
+			break;
+			
+		// MySQL Numeric Type Overview (decimals)
+		case "double":
+			col.setDataType(DataType.DOUBLE);
+			break;
+		case "float":
+			col.setDataType(DataType.REAL);
+			break;
+		case "dec":
 		case "decimal":
 			if (mysqltypedetails.contains("unsigned")) {
-				return DataType.DOUBLE;
+				col.setDataType(DataType.DOUBLE);
 			} else {
-				return DataType.DECIMAL;
+				col.setDataType(DataType.DECIMAL);
 			}
-		case "text":
-			return DataType.NCLOB;
-		case "tinyint":
-			return DataType.TINYINT;
-		case "tinyblob":
-			return DataType.NVARCHAR;
+			break;
+			
+		// MySQL date/time datatype
+		case "datetime":
+		case "timestamp":
+			col.setDataType(DataType.TIMESTAMP);
+			break;
 		case "date":
-			return DataType.DATE;
-		case "float":
-			return DataType.DOUBLE;
-		case "longblob":
-			return DataType.BLOB;
+			col.setDataType(DataType.DATE);
+			break;
+		case "time":
+			col.setDataType(DataType.TIME);
+			break;
+		case "year":
+			col.setDataType(DataType.INTEGER);
+			break;
+			
+		// MySQL char datatypes
+		case "varchar":
+		case "char":
+		case "tinytext":
+			col.setDataType(DataType.NVARCHAR);
+			break;
+		case "longtext":
+		case "text":
 		case "mediumtext":
-			return DataType.NCLOB;
+			col.setDataType(DataType.NCLOB);
+			break;
+			
+		// MySQL binary datatypes
+		case "binary":
+			col.setDataType(DataType.VARBINARY);
+			break;
+		case "varbinary":
+			col.setDataType(DataType.VARBINARY);
+			break;
+		case "tinyblob":
+			col.setDataType(DataType.VARBINARY);
+			break;
+		case "longblob":
 		case "mediumblob":
-			return DataType.BLOB;
+		case "blob":
+			col.setDataType(DataType.BLOB);
+			break;
+
+		// other datatypes
 		case "enum":
-			return DataType.NVARCHAR;
+			col.setDataType(DataType.NVARCHAR);
+			break;
+		case "set":
+			col.setDataType(DataType.NVARCHAR);
+			break;
 		default:
-			return DataType.INVALID;
+			col.setDataType(DataType.INVALID);
+			break;
 		}
+		return col;
 	}
 
 	@Override
