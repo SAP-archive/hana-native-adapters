@@ -106,12 +106,12 @@ public class TableLoaderRSSFeed extends TableLoader {
         table.setDescription("The RSSFeed Contents");
         
         addPKColumnVarchar(table, "URI", 512, "The unique ID of the post", null, null);
-        addColumnVarchar(table, "AUTHOR", 255, "Author of the RSS entry", null, null);
+        addColumnNVarchar(table, "AUTHOR", 255, "Author of the RSS entry", null, null);
         addColumnVarchar(table, "LINK", 512, "Link to the post", null, null);
         addColumnTimestamp(table, "PUBLISHEDDATE", "Date published", null, null);
-        addColumnVarchar(table, "TITLE", 255, "Title of the post", null, null);
+        addColumnNVarchar(table, "TITLE", 255, "Title of the post", null, null);
         addColumnTimestamp(table, "UPDATEDATE", "Update date", null, null);
-        addColumnVarchar(table, "DESCRIPTION", 5000, "Excerpt from the post", null, null);
+        addColumnNVarchar(table, "DESCRIPTION", 5000, "Excerpt from the post", null, null);
 	}
 
 	@SuppressWarnings("unchecked")
