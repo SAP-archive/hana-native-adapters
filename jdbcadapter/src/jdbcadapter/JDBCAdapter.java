@@ -99,7 +99,7 @@ public class JDBCAdapter extends Adapter{
 		RemoteSourceDescription rs = new RemoteSourceDescription();
 		PropertyGroup connectionInfo = new PropertyGroup("connectionInfo","Connection","Connection");
 		connectionInfo.addProperty(new PropertyEntry("jdbcurl", "JDBC URL", "The URL of the connection, e.g. jdbc:sqlserver://localhost;databaseName=master"));
-		connectionInfo.addProperty(new PropertyEntry("jdbcjar", "JDBC Driver jar file", "the location of the jdbc driver's jar file on the agent computer, e.g. lib/sqljdbc.jar"));
+		connectionInfo.addProperty(new PropertyEntry("jdbcjar", "JDBC Driver jar file", "the location of the jdbc driver's jar file on the agent computer, e.g. lib/sqljdbc.jar or a directory with jar files"));
 		connectionInfo.addProperty(new PropertyEntry("jdbcclass", "JDBC Class", "The class name to use, e.g. com.microsoft.sqlserver.jdbc.SQLServerDriver"));
 		CredentialProperties credentialProperties = new CredentialProperties();
 		CredentialEntry credential = new CredentialEntry("credential", "JDBC Credentials");
@@ -137,8 +137,8 @@ public class JDBCAdapter extends Adapter{
 		}
 		
 		String jdbcurl = connectionInfo.getConnectionProperties().getPropertyEntry("jdbcurl").getValue();
-		String jdbcclass = connectionInfo.getConnectionProperties().getPropertyEntry("jdbcclass").getValue();		
-		String jdbcjar = connectionInfo.getConnectionProperties().getPropertyEntry("jdbcjar").getValue();
+		String jdbcclass = connectionInfo.getConnectionProperties().getPropertyEntry("jdbcclass").getValue().trim();		
+		String jdbcjar = connectionInfo.getConnectionProperties().getPropertyEntry("jdbcjar").getValue().trim();
 
 		
 		File file = new File(jdbcjar);
@@ -148,10 +148,21 @@ public class JDBCAdapter extends Adapter{
 		blobHandle = new HashMap<Long, InputStream>();
 		clobHandle = new HashMap<Long, Reader>();
 		try {
-			
-			URL u = new URL("jar:file:" + jdbcjar + "!/");
-			URLClassLoader ucl = new URLClassLoader(new URL[] { u });
-			
+			URL[] jarfiles; 
+			if (file.isDirectory()) {
+				File[] jarfilearray = file.listFiles();
+				jarfiles = new URL[jarfilearray.length];
+				int i=0;
+				for (File f : jarfilearray) {
+					jarfiles[i] = f.toURI().toURL();
+					i++;
+				}
+			} else {
+				jarfiles = new URL[1];
+				jarfiles[0] = file.toURI().toURL();
+			}
+			myURLClassLoader ucl = new myURLClassLoader(jarfiles, this.getClass().getClassLoader());
+						
 			Driver d = (Driver)Class.forName(jdbcclass, true, ucl).newInstance();
 			DriverManager.registerDriver(new DriverDelegator(d));
 			conn = DriverManager.getConnection(jdbcurl, username, password);
@@ -978,6 +989,32 @@ public class JDBCAdapter extends Adapter{
 		// TODO Auto-generated method stub
 		
 	}	
+}
+
+class myURLClassLoader extends URLClassLoader {
+
+	public myURLClassLoader(URL[] jarfiles, ClassLoader classLoader) {
+		super(jarfiles, classLoader);
+	}
+
+	@Override
+	protected Class<?> findClass(String name) throws ClassNotFoundException {
+		// TODO Auto-generated method stub
+		return super.findClass(name);
+	}
+
+	@Override
+	public URL findResource(String name) {
+		// TODO Auto-generated method stub
+		return super.findResource(name);
+	}
+
+	@Override
+	public Enumeration<URL> findResources(String name) throws IOException {
+		// TODO Auto-generated method stub
+		return super.findResources(name);
+	}
+	
 }
 
 class DriverDelegator implements Driver {

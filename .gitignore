@@ -2,9 +2,9 @@
 ## Eclipse
 #################
 
-*.pydevproject
-.project
-.metadata
+#*.pydevproject
+#.project
+#.metadata
 bin/
 tmp/
 lib/

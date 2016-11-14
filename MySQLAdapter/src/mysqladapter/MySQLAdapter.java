@@ -168,6 +168,7 @@ public class MySQLAdapter extends AdapterCDC {
 		capability.setCapability(AdapterCapability.CAP_LIMIT);
 		capability.setCapability(AdapterCapability.CAP_LIMIT_ARG);
 		capability.setCapability(AdapterCapability.CAP_TRANSACTIONAL_CDC);
+		capability.setCapability(AdapterCapability.CAP_BIGINT_BIND);
 		capability.setCapability(AdapterCapability.CAP_METADATA_ATTRIBUTE);
 		capability.setCapability(AdapterCapability.CAP_WHERE);
 		capability.setCapability(AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE);
@@ -470,7 +471,7 @@ public class MySQLAdapter extends AdapterCDC {
 		} catch (UnsupportedEncodingException ex) {
 			logger.log(Level.WARN, "Error reading credentials");
 			logger.log(Level.ERROR, ex.getMessage(), ex);
-			throw new AdapterException(ex, ex.getMessage());
+			throw new AdapterException(ex);
 		}
 		String server = connectionInfo.getConnectionProperties().getPropertyEntry("server").getValue();
 		int port = Integer
@@ -483,7 +484,7 @@ public class MySQLAdapter extends AdapterCDC {
 		} catch (SQLException e) {
 			logger.log(Level.WARN, "Error opening connection");
 			logger.log(Level.ERROR, e.getMessage(), e);
-			throw new AdapterException(e, e.getMessage());
+			throw new AdapterException(e);
 		}
 	}
 
