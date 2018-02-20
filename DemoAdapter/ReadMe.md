@@ -27,23 +27,30 @@ In brief, Virtual Procedure allows adapter to expose remote procedures to HANA. 
 Agent framework will execute the virtual procedure call as described below.
 
 Importing of Virtual Procedure. 
+	
 	Step 1: Adapter will return an browse object with node type PROCEDURE in Adapter.browseMetadata() call
+	
 	Step 2: Adapter will return ProcedureMetadata object describing the remote procedure metadata in Adapter.importMetadata() call
+	
 	Step 3: Adapter will then validate the metadata again when server is ready to save the virtual procedure in its catalog in Adapter.validateCall() call. 
+	
 
 Execution of Virtual Procedure 
-	Step 1: Adapter will need to create an object of this class and instantiates all necessary objects required to perform this procedure call
-				in Adapter.prepareCall() call. Prepare call will have all scalar inputs available at that moment.
+	
+	Step 1: Adapter will need to create an object of this class and instantiates all necessary objects required to perform this procedure call in Adapter.prepareCall() call. Prepare call will have all scalar inputs available at that moment.
+	
 	Step 2 (optional): If there are any Table IN parameter, server will call putNextRowSet with the index of the parameter along with the data.
-				Note: This call will be executed multiple times until Adapter gets an empty result set marking the end of data.
+	
+	Note: This call will be executed multiple times until Adapter gets an empty result set marking the end of data.
 				
 	Step 3 : Framework will call executeCall() on this instance.
-	Step 4 (optional): If there is any scalar OUT parameter, framework will call getNextScalar() with index of the parameter and Scalar parameter object
-				where adapter needs to fill the value with.
-	Step 5 (optional): If there is any table OUT paramter, framework will call getNextRowSet() with index of the parameter and AdapterRowSet object
-				where adapter needs to fill the value with. 
-	Step 6 : Once the execution is done and the above optional may be called, at the end of the call, server will call Adapter.closeResultSet
-				indicating it has finished processing the result sets. Adapter will need to make sure they close temporary result sets and lob buffers.
+	
+	Step 4 (optional): If there is any scalar OUT parameter, framework will call getNextScalar() with index of the parameter and Scalar parameter object where adapter needs to fill the value with.
+	
+	Step 5 (optional): If there is any table OUT paramter, framework will call getNextRowSet() with index of the parameter and AdapterRowSet object where adapter needs to fill the value with. 
+	
+	Step 6 : Once the execution is done and the above optional may be called, at the end of the call, server will call Adapter.closeResultSet indicating it has finished processing the result sets. Adapter will need to make sure they close temporary result sets and lob buffers.
+	
 
 Note: Virtual Procedure are not read only, they may change state on remote source, which is source-dependent.
 
