@@ -146,4 +146,4 @@ call demo_procedure(4, ?);
 
 This is bare minimal code to show how to get virtual function and procedure enabled with a in-memory table.
 
-* Hana Studio does not support these features. Please use WebIDE which should be accessible at http://<hana-hostname>:80<hana-instance-id>/sap/hana/ide/catalog/
+* Hana Studio does not support these features. Please use WebIDE which should be accessible at http://${hana-hostname}:80${hana-instance-id}/sap/hana/ide/catalog/
