@@ -85,3 +85,10 @@ select * From "SYSTEM"."test_table";
 
 
 ```
+
+## Note
+
+This is bare minimal code to show how to get writeback enabled with a in-memory table.
+
+* Please see jdbcadapter/SQLRewriter.java example on how to parse the SQL to get the table and column names. 
+* If the data contains lob, do a piecewise fetch of lob data using Adapter.getColumnLobValue from HANA Server then build the binary buffer on your side.
