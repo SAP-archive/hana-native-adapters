@@ -74,6 +74,8 @@ public class WriteBackAdapter extends Adapter{
 		Capabilities<AdapterCapability> capbility = new Capabilities<AdapterCapability>();
 		capbility.setCapability(AdapterCapability.CAP_SELECT);
 		capbility.setCapability(AdapterCapability.CAP_INSERT);
+		capbility.setCapability(AdapterCapability.CAP_BIGINT_BIND);
+		capbility.setCapability(AdapterCapability.CAP_METADATA_ATTRIBUTE);		
 		return capbility;
 	}
 
