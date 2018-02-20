@@ -15,6 +15,13 @@ The Adapter SDK is part of the Hana EIM option and as such fully documented in [
 
 This is an open source project under the Apache 2.0 license, and every contribution is welcome. Issues, pull-requests and other discussions are welcome and expected to take place here. 
 
+## Sample Adapters
+
+ * WriteBackAdapter: Shows the writeback capabilities, meaning read data from hana and push to remote source
+ * DemoAdapter: Shows the virtual function and virtual procedures capablities.
+ * JDBCAdapter: Shows how to connect to the remote DB using jdbc and also rewriting HANA SQL Query to remote format
+ * RealTimeTestAdapter: Shows Real time replication capablities.
+
 
 ## SQL to use custom adapter
 
