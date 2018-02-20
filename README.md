@@ -15,3 +15,59 @@ The Adapter SDK is part of the Hana EIM option and as such fully documented in [
 
 This is an open source project under the Apache 2.0 license, and every contribution is welcome. Issues, pull-requests and other discussions are welcome and expected to take place here. 
 
+
+## SQL to use custom adapter
+
+```sql
+--Note: You do not need to run drop command but this provides you an idea what command to run for clean up
+
+drop agent "DebugAgent" cascade;
+
+create agent "DebugAgent" protocol 'TCP' host '<your host ip>' port 5050;
+
+--Check if Agent is registered. Make sure host:port are properly setup.
+select * from agents;
+
+--Custom Adapter Registration
+drop adapter "WriteBackAdapter" cascade;
+create adapter "WriteBackAdapter" at location agent "DebugAgent";
+
+--Run the following if remote source config or capabilities are updated.
+alter adapter "WriteBackAdapter" refresh at location agent "DebugAgent";
+
+
+--Check for adpater registration.
+select * from adapters;
+
+--Create WriteBackAdapter Remote Source. Always use UI for doing the following but you can use SQL for testing.
+drop remote source "MyRemoteSource" cascade;
+CREATE REMOTE SOURCE "MyRemoteSource" ADAPTER "WriteBackAdapter" AT  LOCATION agent "DebugAgent" 
+ CONFIGURATION '<?xml version="1.0" encoding="UTF-8"?>
+ <ConnectionProperties name="testParam">
+	<PropertyEntry name="name">Hana_Studio</PropertyEntry>
+ </ConnectionProperties>
+'	
+ WITH CREDENTIAL TYPE 'PASSWORD' USING 
+ '<CredentialEntry name="credential">
+		<username>testuser</username>
+		<password>testpassword</password>
+</CredentialEntry>';
+
+--HANA stores your remote source configuration in the following table.
+select * from remote_sources;
+
+
+--Check if above configuration is correct.
+call CHECK_REMOTE_SOURCE('MyRemoteSource');
+
+--Browse via ui.
+ CALL "PUBLIC"."GET_REMOTE_SOURCE_OBJECT_TREE" ('MyRemoteSource','',?,?);
+
+--Import the table to hana
+drop table "SYSTEM"."test_table";
+CREATE VIRTUAL TABLE "SYSTEM"."test_table" at "MyRemoteSource"."<NULL>"."<NULL>"."InMemoryTable";
+
+--Select from source table.
+select * From "SYSTEM"."test_table";
+
+```
