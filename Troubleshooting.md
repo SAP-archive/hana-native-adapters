@@ -77,9 +77,6 @@ Once you are dong with debugging, it is recommended to switch the levels back to
 -- For Virtual Function and Virtual Procedures
  ALTER SYSTEM ALTER CONFIGURATION ('indexserver.ini', 'SYSTEM') SET ('trace', 'dpVirtualFxn') = 'debug' WITH  RECONFIGURE;
 
--- For getting exact message send to/from agent. Enabling this will overflow logs and slows down the entire process, so do it with caution.
- ALTER SYSTEM ALTER CONFIGURATION ('dpserver.ini', 'SYSTEM') SET ('trace', 'dpframeworkmessagebody') = 'debug' WITH  RECONFIGURE;
- 
  -- For debugging every SQL statement
  ALTER SYSTEM ALTER CONFIGURATION ('indexserver.ini', 'SYSTEM') SET ('trace', 'FedTrace') = 'debug' WITH  RECONFIGURE;
 ```
