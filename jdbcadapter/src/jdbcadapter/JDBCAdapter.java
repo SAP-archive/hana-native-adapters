@@ -786,89 +786,64 @@ public class JDBCAdapter extends Adapter{
 	 * You need to add each of the capability for this adapter in this method.
 	 * This method is called at the initial registration of this adapter.
 	 * 
-	 * Note the response will be cached and if you decide to change you will need to restart adapter.
+	 * Note the response will be cached and if you decide to change you will need to re-register the adapter.
 	 */
 	@Override
 	public Capabilities<AdapterCapability> getCapabilities(String version)
 			throws AdapterException {
 		Capabilities<AdapterCapability> capbility = new Capabilities<AdapterCapability>();
 		List<AdapterCapability> capabilities = new ArrayList<AdapterCapability>();
-		if( System.getenv("DP_AGENT_DIR") == null || System.getenv("CAPS_INI") == null ) {
-			capabilities.add(AdapterCapability.CAP_ALTER_TAB_WITH_ADD );
-			capabilities.add(AdapterCapability.CAP_ALTER_TAB_WITH_DROP );
-			capabilities.add(AdapterCapability.CAP_WINDOWING_FUNC);
-			capabilities.add(AdapterCapability.CAP_BI_ADD);
-			capabilities.add(AdapterCapability.CAP_BIGINT_BIND);
-			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_GROUPBY);
-			capabilities.add(AdapterCapability.CAP_INSERT_SELECT_ORDERBY);
-			capabilities.add(AdapterCapability.CAP_DELETE);
+		capabilities.add(AdapterCapability.CAP_ALTER_TAB_WITH_ADD );
+		capabilities.add(AdapterCapability.CAP_ALTER_TAB_WITH_DROP );
+		capabilities.add(AdapterCapability.CAP_WINDOWING_FUNC);
+		capabilities.add(AdapterCapability.CAP_BI_ADD);
+		capabilities.add(AdapterCapability.CAP_BIGINT_BIND);
+		capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_GROUPBY);
+		capabilities.add(AdapterCapability.CAP_INSERT_SELECT_ORDERBY);
+		capabilities.add(AdapterCapability.CAP_DELETE);
 
-			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_PROJ);
-			capabilities.add(AdapterCapability.CAP_EXPR_IN_PROJ);
-			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_PROJ);
-			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE);
-			capabilities.add(AdapterCapability.CAP_EXPR_IN_WHERE);
-			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_WHERE);
-			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_INNER_JOIN);
-			capabilities.add(AdapterCapability.CAP_EXPR_IN_INNER_JOIN);
-			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_INNER_JOIN);
-			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_LEFT_OUTER_JOIN);
-			capabilities.add(AdapterCapability.CAP_EXPR_IN_LEFT_OUTER_JOIN);
-			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_LEFT_OUTER_JOIN);
-			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_FULL_OUTER_JOIN);
-			capabilities.add(AdapterCapability.CAP_EXPR_IN_FULL_OUTER_JOIN);
-			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_FULL_OUTER_JOIN);
-			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_GROUPBY);
-			capabilities.add(AdapterCapability.CAP_EXPR_IN_GROUPBY);
-			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_GROUPBY);
-			capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_ORDERBY);
-			capabilities.add(AdapterCapability.CAP_EXPR_IN_ORDERBY);
-			capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_ORDERBY);
-			capabilities.add(AdapterCapability.CAP_SELECT);
-			capabilities.add(AdapterCapability.CAP_SCALAR_FUNCTIONS_NEED_ARGUMENT_CHECK);
-			capabilities.add(AdapterCapability.CAP_NONEQUAL_COMPARISON);
-			capabilities.add(AdapterCapability.CAP_OR_DIFFERENT_COLUMNS);	
-			capabilities.add(AdapterCapability.CAP_PROJECT);	
+		capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_PROJ);
+		capabilities.add(AdapterCapability.CAP_EXPR_IN_PROJ);
+		capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_PROJ);
+		capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_WHERE);
+		capabilities.add(AdapterCapability.CAP_EXPR_IN_WHERE);
+		capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_WHERE);
+		capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_INNER_JOIN);
+		capabilities.add(AdapterCapability.CAP_EXPR_IN_INNER_JOIN);
+		capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_INNER_JOIN);
+		capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_LEFT_OUTER_JOIN);
+		capabilities.add(AdapterCapability.CAP_EXPR_IN_LEFT_OUTER_JOIN);
+		capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_LEFT_OUTER_JOIN);
+		capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_FULL_OUTER_JOIN);
+		capabilities.add(AdapterCapability.CAP_EXPR_IN_FULL_OUTER_JOIN);
+		capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_FULL_OUTER_JOIN);
+		capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_GROUPBY);
+		capabilities.add(AdapterCapability.CAP_EXPR_IN_GROUPBY);
+		capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_GROUPBY);
+		capabilities.add(AdapterCapability.CAP_SIMPLE_EXPR_IN_ORDERBY);
+		capabilities.add(AdapterCapability.CAP_EXPR_IN_ORDERBY);
+		capabilities.add(AdapterCapability.CAP_NESTED_FUNC_IN_ORDERBY);
+		capabilities.add(AdapterCapability.CAP_SELECT);
+		capabilities.add(AdapterCapability.CAP_SCALAR_FUNCTIONS_NEED_ARGUMENT_CHECK);
+		capabilities.add(AdapterCapability.CAP_NONEQUAL_COMPARISON);
+		capabilities.add(AdapterCapability.CAP_OR_DIFFERENT_COLUMNS);	
+		capabilities.add(AdapterCapability.CAP_PROJECT);	
 
-			capabilities.add(AdapterCapability.CAP_LIKE);
-			capabilities.add(AdapterCapability.CAP_GROUPBY);	
-			capabilities.add(AdapterCapability.CAP_ORDERBY);	
-			capabilities.add(AdapterCapability.CAP_AGGREGATES);	
-			capabilities.add(AdapterCapability.CAP_AGGREGATE_COLNAME);	
-			capabilities.add(AdapterCapability.CAP_JOINS);	
-			capabilities.add(AdapterCapability.CAP_JOINS_OUTER);	
-			capabilities.add(AdapterCapability.CAP_AND);	
-			capabilities.add(AdapterCapability.CAP_OR);	
-			capabilities.add(AdapterCapability.CAP_BETWEEN);
-			capabilities.add(AdapterCapability.CAP_IN);
-			capabilities.add(AdapterCapability.CAP_BI_SUBSTR);	
-			capabilities.add(AdapterCapability.CAP_BI_MOD);	
-			capabilities.add(AdapterCapability.CAP_AGGREGATES);	
-	    	capabilities.add(AdapterCapability.CAP_AND_DIFFERENT_COLUMNS);
-		}
-		else {
-
-			String sFileName=System.getenv("DP_AGENT_DIR") + "/configuration/" + System.getenv("CAPS_INI");
-
-			try {
-				Properties prop = new Properties();
-				InputStream input = null;
-				input = new FileInputStream(sFileName);
-				prop.load(input);
-
-				Enumeration<?> e = prop.propertyNames();
-
-				while (e.hasMoreElements()) {
-					String key = (String) e.nextElement();
-					int value =  Integer.parseInt(prop.getProperty(key));				 
-					capabilities.add(AdapterCapability.valueOf(value));
-				}
-			} catch (IOException e) {
-				throw new AdapterException(e,e.getLocalizedMessage());
-			}	    	 
-		}			
-
-
+		capabilities.add(AdapterCapability.CAP_LIKE);
+		capabilities.add(AdapterCapability.CAP_GROUPBY);	
+		capabilities.add(AdapterCapability.CAP_ORDERBY);	
+		capabilities.add(AdapterCapability.CAP_AGGREGATES);	
+		capabilities.add(AdapterCapability.CAP_AGGREGATE_COLNAME);	
+		capabilities.add(AdapterCapability.CAP_JOINS);	
+		capabilities.add(AdapterCapability.CAP_JOINS_OUTER);	
+		capabilities.add(AdapterCapability.CAP_AND);	
+		capabilities.add(AdapterCapability.CAP_OR);	
+		capabilities.add(AdapterCapability.CAP_BETWEEN);
+		capabilities.add(AdapterCapability.CAP_IN);
+		capabilities.add(AdapterCapability.CAP_BI_SUBSTR);	
+		capabilities.add(AdapterCapability.CAP_BI_MOD);	
+		capabilities.add(AdapterCapability.CAP_AGGREGATES);	
+	    	capabilities.add(AdapterCapability.CAP_AND_DIFFERENT_COLUMNS);		
 		capbility.setCapabilities(capabilities);
 		return capbility;
 	}
