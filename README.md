@@ -21,7 +21,7 @@ This is an open source project under the Apache 2.0 license, and every contribut
  * DemoAdapter: Shows the virtual function and virtual procedures capablities.
  * JDBCAdapter: Shows how to connect to the remote DB using jdbc and also rewriting HANA SQL Query to remote format
  * RealTimeTestAdapter: Shows Real time replication capablities.
-
+ * WebServiceAdapter: Shows how to call httpserver and expose the response via Adapter SDK. See [link] (https://blogs.sap.com/2018/06/29/provisioning-data-from-web-services-with-custom-adapter-using-sap-hana-sdi-sdk/)
 
 ## SQL to use custom adapter
 
