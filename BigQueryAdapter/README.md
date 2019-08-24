@@ -1,61 +1,47 @@
-# BigQuery Adapter Hana SDI
+# BigQuery Adapter for Hana SDI
 
 ## Overview
 
-Project Title
-One Paragraph of project description goes here
+BQAdapter connects Hana to BigQuery and supports SELECT, INSERT, DELETE, UPDATE operations on BigQuery
 
-Getting Started
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
+For a complete list of capabilities, refer to BQAdapter.getCapabilities() method in BQAdapter.java
 
-Prerequisites
-What things you need to install the software and how to install them
 
-Give examples
-Installing
-A step by step series of examples that tell you how to get a development env running
+## Prerequisites
+BIGQuery JDBC Driver - https://cloud.google.com/bigquery/providers/simba-drivers/
+The BQAdapter was tested with the JDBC 4.1 compatible driver
 
-Say what the step will be
+Log4j - https://logging.apache.org/log4j/2.0/download.html
 
-Give the example
-And repeat
+The Eclipse manifest file should have the following Plugins under the Dependencies section..
+Require-Bundle: org.apache.log4j;bundle-version="1.2.15",
+ com.sap.hana.dp.adapterframework;bundle-version="2.2.4"
 
-until finished
-End with an example of getting some data out of the system or using it for a little demo
+Higher versions might work as well but needs to be tested.
 
-Running the tests
-Explain how to run the automated tests for this system
 
-Break down into end to end tests
-Explain what these tests test and why
+## Configuration
 
-Give an example
-And coding style tests
-Explain what these tests test and why
+BQAdapter uses a Properties file to specify GCP project information
+bqadapter.properties file contains the following information::
 
-Give an example
-Deployment
-Add additional notes about how to deploy this on a live system
+Project ID - Google BigQuery Project ID
+Email - OAuth Email Address (Service Account)
+KeyFilePath - OAuth Secret Key file path
+Driver - JDBC JAR Location of simba jar file
 
-Built With
-Dropwizard - The web framework used
-Maven - Dependency Management
-ROME - Used to generate RSS Feeds
-Contributing
-Please read CONTRIBUTING.md for details on our code of conduct, and the process for submitting pull requests to us.
+bqadapter.properties file should be present in /usr/sap/dataprovagent/adapters directory. 
+See BQAdapter.open() method to see how it is used
 
-Versioning
-We use SemVer for versioning. For the versions available, see the tags on this repository.
+The logging is controlled by the parameter 
+framework.log.level=INFO  (other values include TRACE, DEBUG, WARNING, ERROR, FATAL) in /usr/sap/dataprovagent/dpagentconfig.ini
 
-Authors
-Billie Thompson - Initial work - PurpleBooth
-See also the list of contributors who participated in this project.
 
-License
+## Authors
+Ravi Condamoor - Initial work - SAP Labs
+
+## License
 This project is licensed under the MIT License - see the LICENSE.md file for details
 
-Acknowledgments
-Hat tip to anyone whose code was used
-Inspiration
-etc
+
 
