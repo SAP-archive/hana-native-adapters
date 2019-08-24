@@ -59,6 +59,13 @@ BQAdapter has a robust set of set of Capabilities, including JOIN relocation and
 
 Refer BQAdapter.getCapabilities() method in BQAdapter.java
 
+This Adapter implementation enables the HighPerfomance settings - AllowLargeResults=1;, EnableHighThroughputAPI=1 in the Simba JDBC driver by default. See BQAdapter.open() method to see how they are used. 
+
+https://www.simba.com/products/BigQuery/doc/JDBC_InstallGuide/content/jdbc/bq/options/enablehighthroughputapi.htm
+
+   
+
+
 
 ## Prerequisites
 BIGQuery JDBC Driver - https://cloud.google.com/bigquery/providers/simba-drivers/
