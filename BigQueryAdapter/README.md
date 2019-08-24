@@ -8,10 +8,11 @@ BQAdapter connects Hana to BigQuery and supports SELECT, INSERT, DELETE, UPDATE 
 ## Capabilities
 BQAdapter is full finctionl with a vast set of Capabilities, including JOIN relocation and Push-down query
 
+```java
 @Override
 	public Capabilities<AdapterCapability> getCapabilities(String version) throws AdapterException {
 		Capabilities<AdapterCapability> capability = new Capabilities<AdapterCapability>();
-//enabled capabilities
+		//enabled capabilities
 		capability.setCapability(AdapterCapability.CAP_SELECT);
 		capability.setCapability(AdapterCapability.CAP_AND);
 		capability.setCapability(AdapterCapability.CAP_AND_DIFFERENT_COLUMNS);
@@ -54,7 +55,9 @@ BQAdapter is full finctionl with a vast set of Capabilities, including JOIN relo
 
   return capability;
 }
-For a complete list of capabilities, refer to BQAdapter.getCapabilities() method in BQAdapter.java
+```
+
+Refer BQAdapter.getCapabilities() method in BQAdapter.java
 
 
 ## Prerequisites
